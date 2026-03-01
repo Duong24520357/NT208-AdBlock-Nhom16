@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AdBlock</title>
+    <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <img src="../icons/icon48.png" alt="logo" class="logo" />
+            <span class="app-name">AdBlock</span>
+        </div>
+        <div id="status-dot" class="status-dot"></div>
+    </header>
+
+    <!-- TOGGLE BẬT/TẮT -->
+    <section class="toggle-section">
+        <div class="toggle-info">
+            <span class="toggle-title">Chặn quảng cáo</span>
+            <span id="toggle-label" class="toggle-label">Đang bật</span>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="toggle-switch" checked />
+            <span class="slider"></span>
+        </label>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- THỐNG KÊ -->
+    <section class="stats-section">
+        <div class="stat-card">
+            <span id="tab-blocked-count" class="stat-number">0</span>
+            <span class="stat-desc">Trang này</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-card">
+            <span id="total-blocked-count" class="stat-number">0</span>
+            <span class="stat-desc">Tổng cộng</span>
+        </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- DOMAIN HIỆN TẠI -->
+    <section class="domain-section">
+        <span class="domain-icon">🌐</span>
+        <span id="hostname-label" class="hostname">Đang tải...</span>
+    </section>
+
+    <!-- CÁC NÚT HÀNH ĐỘNG -->
+    <section class="actions-section">
+        <button id="whitelist-btn" class="btn btn-danger">
+            🚫 Tắt cho trang này
+        </button>
+        <button id="picker-btn" class="btn btn-secondary">
+            🎯 Chặn phần tử
+        </button>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <span>NT208 - Nhóm 16</span>
+    </footer>
+
+    <script src="popup.js"></script>
+</body>
+</html>
