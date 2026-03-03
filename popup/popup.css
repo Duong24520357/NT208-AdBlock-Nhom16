@@ -1,4 +1,28 @@
 /* =============================================
+   VARIABLES (Hệ màu hiện đại)
+   ============================================= */
+:root {
+    --bg-base: #0f172a;        /* Xám tối (Slate 900) */
+    --bg-surface: #1e293b;     /* Xám sáng hơn (Slate 800) */
+    --bg-surface-hover: #334155;
+    
+    --text-primary: #f8fafc;   /* Trắng sáng */
+    --text-secondary: #94a3b8; /* Xám nhạt dễ đọc */
+    
+    --border-light: #334155;   /* Đường viền mỏng */
+    
+    --accent-red: #f43f5e;     /* Đỏ Rose hiện đại */
+    --accent-green: #10b981;   /* Xanh Emerald */
+    --accent-green-glow: rgba(16, 185, 129, 0.3);
+    
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-pill: 99px;
+    
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =============================================
    RESET & BASE
    ============================================= */
 * {
@@ -8,12 +32,13 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #1a1a2e;
-    color: #e0e0e0;
-    width: 300px;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; /* Thêm font hệ thống hiện đại */
+    background: var(--bg-base);
+    color: var(--text-primary);
+    width: 320px; /* Tăng nhẹ chiều rộng để thoáng hơn */
     min-height: 200px;
     user-select: none;
+    -webkit-font-smoothing: antialiased; /* Giúp font chữ sắc nét hơn */
 }
 
 /* =============================================
@@ -23,37 +48,52 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    background: #16213e;
-    border-bottom: 1px solid #0f3460;
+    padding: 12px 16px;
+    
+    /* Phong cách thẻ bo góc */
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    margin: 16px 16px 0 16px; /* Cách lề trên và 2 bên 16px, không cách dưới */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
 .header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
 }
 
 .logo {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    width: 40px; 
+    height: 40px;
+    border-radius: var(--radius-sm);
+    object-fit: contain;
+    /* Thêm hiệu ứng phát sáng màu đỏ hồng cho logo */
+    filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.4));
 }
 
 .app-name {
-    font-size: 16px;
-    font-weight: 700;
-    color: #e94560;
+    font-size: 20px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #f43f5e, #fb7185);
+    
+    -webkit-background-clip: text; 
+    
+    background-clip: text; 
+    
+    -webkit-text-fill-color: transparent;
     letter-spacing: 0.5px;
 }
 
 .status-dot {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: #2ecc71;
-    box-shadow: 0 0 8px #2ecc71;
-    transition: all 0.3s ease;
+    background: var(--accent-green);
+    box-shadow: 0 0 10px var(--accent-green-glow);
+    transition: var(--transition-smooth);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
 }
 
 /* =============================================
@@ -61,36 +101,73 @@ body {
    ============================================= */
 .toggle-section {
     display: flex;
+    flex-direction: row; /* Ép buộc luôn nằm ngang */
+    flex-wrap: nowrap;   /* Tuyệt đối không cho rớt dòng */
     justify-content: space-between;
     align-items: center;
     padding: 14px 16px;
-    background: #16213e;
+    
+    /* Phong cách Thẻ (Card) bo góc */
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    margin: 16px; /* Cách đều các lề 16px */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* --- 2. SỬA LẠI KHỐI THỐNG KÊ --- */
+.stats-section {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 16px;
+    
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    margin: 0 16px 16px 16px; /* Thụt 2 bên vào 16px, cách dưới 16px */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* --- 3. ĐẢM BẢO FOOTER DÍNH LIỀN KHỐI --- */
+.footer {
+    text-align: center;
+    padding: 0 0 16px 0; /* Chỉ cách đáy 16px */
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    
+    /* Bỏ nền đặc và viền để chữ nổi bật trên nền app */
+    background: transparent; 
+    border-top: none;
 }
 
 .toggle-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 }
 
 .toggle-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-primary);
 }
 
 .toggle-label {
     font-size: 12px;
-    color: #2ecc71;
-    transition: color 0.3s ease;
+    font-weight: 500;
+    color: var(--accent-green);
+    transition: var(--transition-smooth);
 }
 
-/* Toggle Switch */
+/* Toggle Switch Hiện đại */
 .switch {
     position: relative;
     display: inline-block;
-    width: 48px;
-    height: 26px;
+    width: 52px;
+    height: 28px;
 }
 
 .switch input {
@@ -103,9 +180,9 @@ body {
     position: absolute;
     cursor: pointer;
     inset: 0;
-    background: #444;
-    border-radius: 26px;
-    transition: 0.3s;
+    background: var(--border-light);
+    border-radius: var(--radius-pill);
+    transition: var(--transition-smooth);
 }
 
 .slider::before {
@@ -113,28 +190,28 @@ body {
     position: absolute;
     height: 20px;
     width: 20px;
-    left: 3px;
-    bottom: 3px;
+    left: 4px;
+    bottom: 4px;
     background: white;
     border-radius: 50%;
-    transition: 0.3s;
+    transition: var(--transition-smooth);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 input:checked + .slider {
-    background: #2ecc71;
-    box-shadow: 0 0 8px #2ecc7166;
+    background: var(--accent-green);
+    box-shadow: 0 0 12px var(--accent-green-glow);
 }
 
 input:checked + .slider::before {
-    transform: translateX(22px);
+    transform: translateX(24px);
 }
 
 /* =============================================
    DIVIDER
    ============================================= */
 .divider {
-    border: none;
-    border-top: 1px solid #0f3460;
+    display: none;
 }
 
 /* =============================================
@@ -144,36 +221,37 @@ input:checked + .slider::before {
     display: flex;
     align-items: center;
     justify-content: space-around;
-    padding: 14px 16px;
-    background: #16213e;
+    padding: 20px 16px;
+    background: var(--bg-surface);
 }
 
 .stat-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 6px;
     flex: 1;
 }
 
 .stat-number {
-    font-size: 24px;
-    font-weight: 700;
-    color: #e94560;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-primary); /* Đổi sang màu trắng để bớt gắt */
     line-height: 1;
 }
 
 .stat-desc {
     font-size: 11px;
-    color: #888;
+    font-weight: 600;
+    color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
 }
 
 .stat-divider {
     width: 1px;
-    height: 36px;
-    background: #0f3460;
+    height: 40px;
+    background: var(--border-light);
 }
 
 /* =============================================
@@ -182,20 +260,24 @@ input:checked + .slider::before {
 .domain-section {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    background: #0f3460;
-    border-top: 1px solid #1a4080;
-    border-bottom: 1px solid #1a4080;
+    gap: 10px;
+    padding: 12px 16px;
+    
+    background: rgba(30, 41, 59, 0.4); /* Nền mờ ảo */
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    margin: 0 16px 16px 16px;
 }
 
 .domain-icon {
-    font-size: 14px;
+    font-size: 16px;
+    color: var(--text-secondary);
 }
 
 .hostname {
-    font-size: 13px;
-    color: #a0b4d0;
+    font-size: 14px; /* Cho to lên một xíu */
+    font-weight: 600; /* In đậm chữ */
+    color: var(--text-primary); /* Đổi sang màu trắng sáng */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -208,53 +290,77 @@ input:checked + .slider::before {
 .actions-section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px 16px;
-    background: #16213e;
+    gap: 10px;
+    padding: 0 16px 16px 16px; /* Căn lề cho khớp với các thẻ ở trên */
+    background: transparent; /* Bỏ nền đặc đi để các nút nổi lên */
 }
 
 .btn {
     width: 100%;
-    padding: 9px 12px;
+    padding: 12px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-md); /* Bo góc to hơn */
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: var(--transition-smooth);
     letter-spacing: 0.3px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px; /* Dành cho việc chèn thêm icon vào nút sau này */
+    transition: transform 0.1s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .btn:hover:not(:disabled) {
-    filter: brightness(1.15);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
 }
 
 .btn:active:not(:disabled) {
-    transform: translateY(0);
-    filter: brightness(0.95);
+    transform: scale(0.98);
 }
 
 .btn:disabled {
     cursor: not-allowed;
-    opacity: 0.4;
+    opacity: 0.5;
     transform: none;
 }
 
+/* Nút đỏ dịu hơn */
 .btn-danger {
-    background: #e74c3c;
+    background: var(--accent-red);
     color: white;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
 }
 
-.btn-warning {
-    background: #f39c12;
-    color: white;
+.btn-danger:hover:not(:disabled) {
+    background: #e11d48; /* Tối đi 1 chút khi hover */
+    box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
 }
 
+/* Nút phụ xám hiện đại */
 .btn-secondary {
-    background: #2c3e6b;
-    color: #a0b4d0;
-    border: 1px solid #0f3460;
+    background: transparent; /* Xóa nền đặc */
+    color: var(--text-secondary); /* Chữ xám sáng */
+    border: 1px solid var(--border-light); /* Thêm viền mỏng */
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--bg-surface-hover); /* Khi di chuột vào mới hiện nền */
+    color: var(--text-primary); /* Chữ sáng lên */
+    border-color: var(--text-secondary);
+}
+
+/* Tạo hiệu ứng nhịp thở */
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Áp dụng vào chấm xanh */
+.status-dot {
+    animation: pulse 2s infinite; /* Chạy liên tục */
 }
 
 /* =============================================
@@ -262,9 +368,9 @@ input:checked + .slider::before {
    ============================================= */
 .footer {
     text-align: center;
-    padding: 8px;
-    font-size: 10px;
-    color: #444;
-    background: #16213e;
-    border-top: 1px solid #0f3460;
+    padding: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-base);
 }

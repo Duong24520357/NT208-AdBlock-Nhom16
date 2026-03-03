@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-
-    <!-- HEADER -->
+    <div class="main-container"></div>
     <header class="header">
         <div class="header-left">
             <img src="../icons/icon48.png" alt="logo" class="logo" />
@@ -17,7 +16,6 @@
         <div id="status-dot" class="status-dot"></div>
     </header>
 
-    <!-- TOGGLE BẬT/TẮT -->
     <section class="toggle-section">
         <div class="toggle-info">
             <span class="toggle-title">Chặn quảng cáo</span>
@@ -31,7 +29,6 @@
 
     <hr class="divider" />
 
-    <!-- THỐNG KÊ -->
     <section class="stats-section">
         <div class="stat-card">
             <span id="tab-blocked-count" class="stat-number">0</span>
@@ -46,27 +43,40 @@
 
     <hr class="divider" />
 
-    <!-- DOMAIN HIỆN TẠI -->
     <section class="domain-section">
-        <span class="domain-icon">🌐</span>
+        <svg class="domain-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
         <span id="hostname-label" class="hostname">Đang tải...</span>
     </section>
 
-    <!-- CÁC NÚT HÀNH ĐỘNG -->
     <section class="actions-section">
         <button id="whitelist-btn" class="btn btn-danger">
-            🚫 Tắt cho trang này
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+            </svg>
+            Tắt cho trang này
         </button>
         <button id="picker-btn" class="btn btn-secondary">
-            🎯 Chặn phần tử
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="22" y1="12" x2="18" y2="12"></line>
+                <line x1="6" y1="12" x2="2" y2="12"></line>
+                <line x1="12" y1="6" x2="12" y2="2"></line>
+                <line x1="12" y1="22" x2="12" y2="18"></line>
+            </svg>
+            Chặn phần tử
         </button>
     </section>
 
-    <!-- FOOTER -->
     <footer class="footer">
         <span>NT208 - Nhóm 16</span>
     </footer>
 
     <script src="popup.js"></script>
+    </div>
 </body>
 </html>
