@@ -69,7 +69,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "adservice.google.com",
-      "resourceTypes": ["script","xmlhttprequest","image"]
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
     }
   },
   {
@@ -172,7 +172,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "adnxs.com",
-      "resourceTypes": ["script","xmlhttprequest","image","sub_frame"]
+      "resourceTypes": ["script","xmlhttprequest","image","sub_frame","media"]
     }
   },
   {
@@ -181,7 +181,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "outbrain.com",
-      "resourceTypes": ["script","xmlhttprequest","image"]
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
     }
   },
   {
@@ -190,7 +190,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "taboola.com",
-      "resourceTypes": ["script","xmlhttprequest","image"]
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
     }
   },
   {
@@ -199,7 +199,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "criteo.com",
-      "resourceTypes": ["script","xmlhttprequest","image"]
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
     }
   },
   {
@@ -226,7 +226,7 @@
     "action": { "type": "block" },
     "condition": {
       "urlFilter": "springserve.com",
-      "resourceTypes": ["script","xmlhttprequest","sub_frame"]
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","media"]
     }
   },
   {
@@ -361,5 +361,77 @@
     "condition": {
       "urlFilter": "||signal-snacks.gliastudios.com^",
       "resourceTypes": ["script","xmlhttprequest","media","sub_frame"]
-    }  }
+    }  },
+  {
+    "id": 41,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||rubiconproject.com^",
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
+    }
+  },
+  {
+    "id": 42,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||openx.net^",
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
+    }
+  },
+  {
+    "id": 43,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||pubmatic.com^",
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
+    }
+  },
+  {
+    "id": 44,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||adsrvr.org^",
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
+    }
+  },
+  {
+    "id": 45,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||smartadserver.com^",
+      "resourceTypes": ["script","xmlhttprequest","image","media","sub_frame"]
+    }
+  },
+  {
+    "id": 46,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||sharethrough.com^",
+      "resourceTypes": ["script","xmlhttprequest","media","sub_frame"]
+    }
+  },
+  {
+    "id": 47,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||yieldmo.com^",
+      "resourceTypes": ["script","xmlhttprequest","media","sub_frame"]
+    }
+  },
+  {
+    "id": 48,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||triplelift.com^",
+      "resourceTypes": ["script","xmlhttprequest","media","sub_frame"]
+    }
+  }
 ]

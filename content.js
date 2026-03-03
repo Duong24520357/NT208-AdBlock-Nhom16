@@ -125,12 +125,21 @@ const adSelectors = [
     "div.ad-showing",
     ".video-ads",
 
-    // Video ad types (outstream, preroll, inread, ...)
+    // Video ad types (outstream, preroll, inread, instream, ...)
     "[class*='outstream']",
     "[class*='preroll']",
     "[class*='midroll']",
     "[class*='postroll']",
     "[class*='inread']",
+    "[class*='instream']",
+    "[id*='instream']",
+    "div[id*='InstreamDom']",
+    "[class*='InstreamDom']",
+    "[id*='instream-ad']",
+    "[class*='instream-ad']",
+    "[class*='instream-wrapper']",
+    "[class*='instream-container']",
+    "[class*='instreamads']",
     "[class*='native-video']",
     "[class*='sponsored-video']",
     "[class*='promoted-video']",
@@ -400,25 +409,32 @@ function injectAdBlockCSS() {
     const style = document.createElement("style");
     style.id = "adblock-css-injected";
     style.textContent = `
-        /* YouTube in-player ads */
-        .ytp-ad-module,
-        .ytp-ad-overlay-container,
-        .ytp-ad-text-overlay,
-        .ytp-ad-skip-button-container,
-        .ytp-ad-player-overlay,
-        .ytp-ad-progress,
-        .ytp-ad-progress-list,
-        .ytp-ad-preview-container,
-        .ytp-ad-image-overlay,
-        div#player-ads,
-        .video-ads.ytp-player-content,
-        ytd-action-companion-ad-renderer,
-        ytd-banner-promo-renderer,
-        ytd-promoted-sparkles-web-renderer,
+        /* Hide YouTube UI ads outside player */
+        ytd-display-ad-renderer,
         ytd-promoted-video-renderer,
-        ytd-ad-slot-renderer,
         ytd-in-feed-ad-layout-renderer,
-        .ytd-promoted-sparkles-text-search-renderer { display: none !important; }
+        ytd-ad-slot-renderer {
+            display: none !important;
+        }
+
+        /* Hide in-player ads ONLY when ad is showing */
+        #movie_player.ad-showing .ytp-ad-module,
+        #movie_player.ad-showing .ytp-ad-overlay-container,
+        #movie_player.ad-showing .ytp-ad-text-overlay,
+        #movie_player.ad-showing .ytp-ad-skip-button-container,
+        #movie_player.ad-showing .ytp-ad-player-overlay,
+        #movie_player.ad-showing .ytp-ad-progress,
+        #movie_player.ad-showing .ytp-ad-progress-list,
+        #movie_player.ad-showing .ytp-ad-preview-container,
+        #movie_player.ad-showing .ytp-ad-image-overlay {
+            display: none !important;
+        }
+
+        /* Restore player UI when no ad */
+        #movie_player:not(.ad-showing) .ytp-ad-module,
+        #movie_player:not(.ad-showing) .ytp-ad-overlay-container {
+            display: block !important;
+        }
 
         /* Video overlay/floating ads */
         [class*='video-ad'],
@@ -430,6 +446,18 @@ function injectAdBlockCSS() {
         [class*='ads-under'],
         [class*='under-player-ad'],
         [class*='under-video-ad'] { display: none !important; }
+
+        /* Instream video ads */
+        [class*='instream'],
+        [id*='instream'],
+        [class*='InstreamDom'],
+        [id*='InstreamDom'],
+        [class*='instream-ad'],
+        [id*='instream-ad'],
+        [class*='instream-wrapper'],
+        [class*='instream-container'],
+        [class*='instreamads'],
+        [id*='instreamads'] { display: none !important; }
     `;
     document.head.appendChild(style);
 }
