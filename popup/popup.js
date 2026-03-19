@@ -120,6 +120,16 @@ toggleSwitch.addEventListener("change", async () => {
         // Cập nhật UI ngay lập tức (không đợi response)
         renderUI({ ...currentState, enabled });
 
+        // Luu trạng thái mới
+        chrome.storage.local.set({ enabled }, () => {
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                const tab = tabs?.[0];
+                if (tab?.id && /^https?:\/\//.test(tab.url || "")) {
+                    chrome.tabs.reload(tab.id);
+                }
+            });
+        });
+
         // Gửi lệnh lên background
         await chrome.runtime.sendMessage({
             type: "TOGGLE_ENABLED",
