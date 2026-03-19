@@ -66,6 +66,17 @@ const adSelectors = [
     "iframe[src*='doubleclick.net']",
     "iframe[src*='pubads.g.doubleclick']",
 
+    // Canvas
+    "canvas[id*='canvas']",
+    "canvas[class*='canvas']",
+    "[id*='box-landing'] canvas",
+    "[class*='box-landing'] canvas",
+    "[id*='landing-ad'] canvas",
+    "[class*='landing-ad'] canvas",
+    "canvas[data-ad-type]",
+    "canvas[data-ad-id]",
+    "div[class*='box-landing']",
+
     // Quảng cáo chung theo class/id phổ biến
     "div[class*='banner-ad']",
     "div[class*='advertisement']",
@@ -90,6 +101,7 @@ const adSelectors = [
     "div[class*='floating-ad']",
     ".no-ads-under",
     "[class*='no-ads-under']",
+    "[class*='adzone']",
     "[id*='no-ads-under']",
     "div[class*='ads-under']",
     "div[id*='ads-under']",
@@ -185,6 +197,67 @@ const AD_DOMAINS = [
     "sharethrough.com",
     "triplelift.com",
 ];
+
+// Selector wrapper quảng cáo an toàn, tránh match các class/id chứa "ad" chung chung
+const STRICT_AD_WRAPPER_SELECTOR = [
+    ".adsbygoogle",
+    "[data-ad-client]",
+    "[data-ad-slot]",
+    "[data-ad-type]",
+    "[data-ad-id]",
+    "[data-adunit]",
+    "[data-video-ad]",
+    "[data-ad-network]",
+    "[id^='google_ads']",
+    "[id^='GoogleAds']",
+    "[id*='div-gpt-ad']",
+    "[class*='gpt-ad']",
+    "[class*='banner-ad']",
+    "[class*='advertisement']",
+    "[class*='ad-container']",
+    "[class*='ad-wrapper']",
+    "[id*='ad-container']",
+    "[id*='ad-banner']",
+    "[class*='sponsor']",
+    "[id*='sponsor']",
+    "[class*='promo']",
+    "[id*='promo']",
+    "[class*='video-ad']",
+    "[class*='ad-video']",
+    "[id*='video-ad']",
+    "[id*='ad-video']",
+    "[class*='under-player-ad']",
+    "[class*='under-video-ad']",
+    "[class*='outstream']",
+    "[class*='preroll']",
+    "[class*='midroll']",
+    "[class*='postroll']",
+    "[class*='inread']",
+    "[class*='instream']",
+    "[id*='instream']",
+    ".no-ads-under",
+    "[class*='no-ads-under']",
+    "[id*='no-ads-under']",
+    "[class*='ads-under']",
+    "[id*='ads-under']",
+].join(", ");
+
+// Kiểm tra tín hiệu quảng cáo mạnh trước khi ẩn/collapse để tránh false-positive
+function hasStrongAdSignal(node) {
+    if (!node) return false;
+
+    const text = `${node.id || ""} ${typeof node.className === "string" ? node.className : ""}`.toLowerCase();
+    const src = `${node.getAttribute?.("src") || node.src || ""}`.toLowerCase();
+
+    const hasAdDataAttr = node.matches?.(
+        "[data-ad-client], [data-ad-slot], [data-ad-type], [data-ad-id], [data-adunit], [data-video-ad], [data-ad-network]"
+    );
+
+    const hasKnownToken = /(adsbygoogle|gpt-ad|div-gpt-ad|google_ads|banner-ad|advertisement|ad-container|ad-wrapper|sponsor|promo|video-ad|ad-video|under-player-ad|under-video-ad|outstream|preroll|midroll|postroll|inread|instream|no-ads-under|ads-under)/.test(text);
+    const hasAdDomainSrc = AD_DOMAINS.some((domain) => src.includes(domain));
+
+    return Boolean(hasAdDataAttr || hasKnownToken || hasAdDomainSrc);
+}
 
 // Phát hiện video nổi dựa theo CSS style (position: fixed)
 function hideFloatingVideoAds() {
@@ -309,10 +382,8 @@ function hideVideoLikeAds() {
         try {
             document.querySelectorAll(sel).forEach(el => {
                 if (!el.dataset.adblockHidden) {
-                    if (!target.dataset.adblockHidden) {
-                        if (hideAndCollapse(el)) {
-                            hiddenCount++;
-                        }
+                    if (hideAndCollapse(el)) {
+                        hiddenCount++;
                     }
                     el.dataset.adblockHidden = "true";
                 }
@@ -337,8 +408,7 @@ function hideVideoLikeAds() {
 
         // Container tổ tiên mang class/tag gợi ý quảng cáo
         const adContainer = video.closest(
-            "aside, [class*='ad'], [id*='ad'], [class*='sponsor'], [class*='promo']," +
-            "[class*='outstream'], [class*='inread'], [class*='preroll']"
+            STRICT_AD_WRAPPER_SELECTOR
         );
 
         // Anh em ruột là skip-button, countdown hoặc nhãn "ad"
@@ -366,9 +436,9 @@ function hideVideoLikeAds() {
         if (shouldHide) {
             const target = adContainer || video;
             if (!target.dataset.adblockHidden) {
-                target.style.setProperty("display", "none", "important");
-                target.dataset.adblockHidden = "true";
-                hiddenCount++;
+                if (hideAndCollapse(target)) {
+                    hiddenCount++;
+                }
             }
         }
     });
@@ -397,9 +467,9 @@ function hideVideoLikeAds() {
                 ? parent
                 : iframe;
             if (!target.dataset.adblockHidden) {
-                target.style.setProperty("display", "none", "important");
-                target.dataset.adblockHidden = "true";
-                hiddenCount++;
+                if (hideAndCollapse(target)) {
+                    hiddenCount++;
+                }
             }
         }
     });
@@ -451,7 +521,6 @@ function injectAdBlockCSS() {
         [class*='sticky-video'][class*='ad'],
         [class*='no-ads-under'],
         [class*='ads-under'],
-        [class*='ads],
         [class*='under-player-ad'],
         [class*='under-video-ad'] { display: none !important; }
 
@@ -500,12 +569,47 @@ function hideAds() {
 
     hideFloatingVideoAds();
     hideVideoLikeAds();
+    collapseEmptyAdPlaceholders();
 
     if (hiddenCount > 0) {
         reportBlocked(hiddenCount);
     }
 
     return hiddenCount;
+}
+
+// Dọn các wrapper quảng cáo rỗng để tránh để lại khoảng trắng sau khi ẩn ads
+function collapseEmptyAdPlaceholders() {
+    const placeholders = document.querySelectorAll(STRICT_AD_WRAPPER_SELECTOR);
+
+    placeholders.forEach((node) => {
+        if (node === document.body || node === document.documentElement) return;
+        if (node.dataset.adblockCollapsed === "true") return;
+
+        // Chỉ xử lý khi có tín hiệu ad rõ ràng hoặc đã chứa node bị extension ẩn
+        const hasAdSignal =
+            hasStrongAdSignal(node) ||
+            node.querySelector("[data-adblock-hidden='true']") !== null;
+        if (!hasAdSignal) return;
+
+        const hasVisibleChild = Array.from(node.children).some((child) => {
+            if (child.dataset.adblockHidden === "true" || child.dataset.adblockCollapsed === "true") {
+                return false;
+            }
+            return window.getComputedStyle(child).display !== "none";
+        });
+
+        if (!hasVisibleChild) {
+            node.dataset.adblockCollapsed = "true";
+            node.style.setProperty("height", "0", "important");
+            node.style.setProperty("min-height", "0", "important");
+            node.style.setProperty("margin", "0", "important");
+            node.style.setProperty("padding", "0", "important");
+            node.style.setProperty("border", "0", "important");
+            node.style.setProperty("overflow", "hidden", "important");
+            collapseParentChain(node, 4);
+        }
+    });
 }
 
 // Hàm báo cáo số lượng quảng cáo đã ẩn lên background.js
@@ -543,6 +647,7 @@ let observer = null;
 
 let debounceTimer = null;
 
+// Debounce việc quét lại ads để tránh gọi hideAds quá dày
 function debounceHideAds() {
     // Hủy timer cũ nếu có
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -553,6 +658,7 @@ function debounceHideAds() {
     }, 100);
 }
 
+// Bắt đầu theo dõi DOM thay đổi để ẩn quảng cáo động
 function startObserver() {
     // Tránh tạo nhiều observer
     if (observer) return;
@@ -574,13 +680,14 @@ function startObserver() {
         childList: true,   // Theo dõi thêm/xóa element con
         subtree: true,     // Theo dõi toàn bộ cây DOM
         attributes: true,  // Theo dõi đổi class/src/style
-        attributeFilter: ["class", "src", "style", "data-ad-status, id"],
+        attributeFilter: ["class", "src", "style", "data-ad-status", "id"],
         characterData: false // Không cần theo dõi text
     });
 
     console.log("[AdBlock] MutationObserver đã bật");
 }
 
+// Dừng theo dõi DOM và dọn dẹp timer liên quan
 function stopObserver() {
     if (observer) {
         observer.disconnect();
@@ -625,6 +732,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
+// Khởi chạy chế độ chọn phần tử để người dùng tự thêm filter
 function startElementPicker() {
     let hoveredElement = null;
 
@@ -713,7 +821,7 @@ function generateSelector(element) {
     return element.tagName.toLowerCase();
 }
 
-// Collapse xóa ô trắng khi ẩn quảng cáo dạng block
+// Ẩn một phần tử quảng cáo cụ thể
 function hideElement(el) {
     if (!el || el.dataset.adblockHidden) return false;
     el.dataset.adblockHidden = "true";
@@ -721,6 +829,7 @@ function hideElement(el) {
     return true;
 }
 
+// Kiểm tra container có thể collapse mà không làm mất nội dung chính
 function shouldCollapseContainer(container) {
     if (!container || container === document.body || container === document.documentElement) return false;
     if (container.dataset.adblockCollapsed) return false;
@@ -738,7 +847,8 @@ function shouldCollapseContainer(container) {
     return visibleChildren.length === 0;
 }
 
-function collapseParentChain(el, maxDepth = 10) {
+// Collapse dần chuỗi thẻ cha để loại bỏ khoảng trắng sau khi ẩn ads
+function collapseParentChain(el, maxDepth = 4) {
     let parent = el?.parentElement;
     let depth = 0;  
 
@@ -762,19 +872,16 @@ function findBestHideTarget(el) {
     if (!el) return el;
 
     // Ưu tiên wrapper có tín hiệu ad để tránh để lại khoảng rỗng
-    const wrapper = el.closest(
-        "[class*='ad'], [class*='ads'],[id*='ad'],[class*='sponsor'],[id*='sponsor']," +
-        "[class*='promo'],[id*='promo'],[class*='banner'],[id*='banner']," +
-        "aside,.ads,.advertisement"
-    );
+    const wrapper = el.closest(STRICT_AD_WRAPPER_SELECTOR);
 
-    if (wrapper && wrapper !== document.body && wrapper !== document.documentElement) {
+    if (wrapper && wrapper !== document.body && wrapper !== document.documentElement && hasStrongAdSignal(wrapper)) {
         return wrapper;
     }
 
     return el;
 }
 
+// Ẩn phần tử quảng cáo và collapse container liên quan
 function hideAndCollapse(el) {
     const target = findBestHideTarget(el);
     const hidden = hideElement(target);

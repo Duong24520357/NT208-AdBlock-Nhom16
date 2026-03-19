@@ -22,7 +22,7 @@ async function applyState() {
     }
 }
 
-// Hàm tiện ích loadState từ storage
+// Hàm tải state đã lưu từ storage
 async function loadState() {
     const savedState = await chrome.storage.local.get("adblockState");
     if (savedState.adblockState) {
@@ -30,7 +30,7 @@ async function loadState() {
     }
 }
 
-// Hàm lưu state vào storage
+// Hàm lưu state hiện tại vào storage
 async function saveState() {
     await chrome.storage.local.set({
         "adblockState": {
@@ -52,7 +52,7 @@ chrome.runtime.onStartup.addListener(async () => {
     await applyState();  // 2. Áp dụng vào Chrome
 });
 
-// Hàm cập nhật badge icon
+// Hàm cập nhật badge icon theo trạng thái tab hiện tại
 function updateBadge(tabId) {
     if (!state.enabled) {
         chrome.action.setBadgeText({ text: "OFF"});
@@ -67,7 +67,7 @@ function updateBadge(tabId) {
     }
 }
 
-// Hàm toggle trạng thái bật/tắt extension
+// Hàm đổi trạng thái bật/tắt extension
 async function toggleEnabled(enabled) {
     state.enabled = enabled;
     await applyState();
@@ -75,7 +75,7 @@ async function toggleEnabled(enabled) {
     updateBadge(null); 
 }
 
-// Hàm cập nhật whitelist Rules
+// Hàm tạo lại whitelist rules dạng session
 async function updateWhitelistRules() {
     // Xóa toàn bộ session rules cũ
     const existing = await chrome.declarativeNetRequest.getSessionRules();
@@ -98,7 +98,7 @@ async function updateWhitelistRules() {
     });
 }
 
-// Hàm toggle whitelist cho một hostname cụ thể
+// Hàm thêm/xóa một hostname khỏi whitelist
 async function toggleWhitelist(hostname) {
     const index = state.whitelist.indexOf(hostname);
 

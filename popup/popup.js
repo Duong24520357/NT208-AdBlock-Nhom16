@@ -19,6 +19,7 @@ let updateInterval = null;
 // =============================================
 // BƯỚC 2: RENDER UI THEO STATE
 // =============================================
+// Hàm render toàn bộ giao diện popup theo state hiện tại
 function renderUI(state) {
     if (!state) return;
     currentState = state;
@@ -76,6 +77,7 @@ function renderUI(state) {
 // =============================================
 // BƯỚC 3: LOAD STATE TỪ BACKGROUND
 // =============================================
+// Hàm lấy state mới nhất từ background và đổ vào UI
 async function loadState() {
     try {
         // Lấy tab đang active
@@ -194,6 +196,7 @@ pickerBtn.addEventListener("click", async () => {
 // =============================================
 // BƯỚC 7: CẬP NHẬT SỐ ĐẾM REALTIME
 // =============================================
+// Hàm bắt đầu polling để cập nhật số ads bị chặn theo thời gian thực
 function startRealtimeUpdate() {
     updateInterval = setInterval(async () => {
         try {
@@ -219,6 +222,7 @@ function startRealtimeUpdate() {
     }, 1000); // Cập nhật mỗi 1 giây
 }
 
+// Hàm dừng polling realtime khi popup đóng hoặc gặp lỗi
 function stopRealtimeUpdate() {
     if (updateInterval) {
         clearInterval(updateInterval);
