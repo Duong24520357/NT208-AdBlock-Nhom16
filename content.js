@@ -276,9 +276,13 @@ function hideFloatingVideoAds() {
             (priorityContainer && (isFloating || isOverlay || isCornerFloating));
 
         if (shouldHide) {
-            candidate.style.setProperty("display", "none", "important");
+            // Ẩn element
+            if (shouldHide) {
+                if (hideAndCollapse(candidate)) {
+                    hiddenCount++;
+                }
+            }
             candidate.dataset.adblockHidden = "true";
-            hiddenCount++;
         }
     });
 
@@ -305,9 +309,12 @@ function hideVideoLikeAds() {
         try {
             document.querySelectorAll(sel).forEach(el => {
                 if (!el.dataset.adblockHidden) {
-                    el.style.setProperty("display", "none", "important");
+                    if (!target.dataset.adblockHidden) {
+                        if (hideAndCollapse(el)) {
+                            hiddenCount++;
+                        }
+                    }
                     el.dataset.adblockHidden = "true";
-                    hiddenCount++;
                 }
             });
         } catch (e) { /* selector không hợp lệ trên browser cũ */ }
@@ -444,6 +451,7 @@ function injectAdBlockCSS() {
         [class*='sticky-video'][class*='ad'],
         [class*='no-ads-under'],
         [class*='ads-under'],
+        [class*='ads],
         [class*='under-player-ad'],
         [class*='under-video-ad'] { display: none !important; }
 
@@ -476,13 +484,13 @@ function hideAds() {
                 // tránh đếm trùng khi hideAds() gọi nhiều lần
                 if (element.dataset.adblockHidden) return;
 
-                // Ẩn element
-                element.style.setProperty("display", "none", "important");
+                // Ẩn element 
+                if (hideAndCollapse(element)) {
+                    hiddenCount++;
+                }
 
                 // Đánh dấu đã ẩn bởi extension
                 element.dataset.adblockHidden = "true";
-
-                hiddenCount++;
             });
 
         } catch (error) {
@@ -512,15 +520,19 @@ function reportBlocked(count) {
 
 // Hàm hiện lại quảng cáo (khi extension tắt hoặc domain được whitelist)
 function showAds() {
-    // Tìm tất cả element đã bị ẩn bởi extension
-    const hiddenElements = document.querySelectorAll("[data-adblock-hidden]");
+    const hiddenElements = document.querySelectorAll("[data-adblock-hidden], [data-adblock-collapsed]");
 
     hiddenElements.forEach(element => {
-        // Xóa style ẩn đã thêm vào
         element.style.removeProperty("display");
+        element.style.removeProperty("height");
+        element.style.removeProperty("min-height");
+        element.style.removeProperty("margin");
+        element.style.removeProperty("padding");
+        element.style.removeProperty("border");
+        element.style.removeProperty("overflow");
 
-        // Xóa đánh dấu
         delete element.dataset.adblockHidden;
+        delete element.dataset.adblockCollapsed;
     });
 
     console.log("[AdBlock] Đã hiện lại", hiddenElements.length, "elements");
@@ -562,7 +574,7 @@ function startObserver() {
         childList: true,   // Theo dõi thêm/xóa element con
         subtree: true,     // Theo dõi toàn bộ cây DOM
         attributes: true,  // Theo dõi đổi class/src/style
-        attributeFilter: ["class", "src", "style", "data-ad-status"],
+        attributeFilter: ["class", "src", "style", "data-ad-status, id"],
         characterData: false // Không cần theo dõi text
     });
 
@@ -646,8 +658,8 @@ function startElementPicker() {
             // Tạo selector đơn giản từ element được chọn
             const selector = generateSelector(hoveredElement);
 
-            // Ẩn ngay element đó
-            hoveredElement.style.setProperty("display", "none", "important");
+            // Ẩn element đã chọn và collapse nếu cần
+            hideAndCollapse(hoveredElement);
             hoveredElement.dataset.adblockHidden = "true";
 
             // Gửi selector lên background để lưu
@@ -699,4 +711,73 @@ function generateSelector(element) {
         return `${element.tagName.toLowerCase()}.${classes}`;
     }
     return element.tagName.toLowerCase();
+}
+
+// Collapse xóa ô trắng khi ẩn quảng cáo dạng block
+function hideElement(el) {
+    if (!el || el.dataset.adblockHidden) return false;
+    el.dataset.adblockHidden = "true";
+    el.style.setProperty("display", "none", "important");
+    return true;
+}
+
+function shouldCollapseContainer(container) {
+    if (!container || container === document.body || container === document.documentElement) return false;
+    if (container.dataset.adblockCollapsed) return false;
+
+    // Tránh collapse khối nội dung thật
+    const hasContentTags = container.querySelector("article, main, p, h1, h2, h3, ul, ol, table, form");
+    if (hasContentTags) return false;
+
+    // Chỉ collapse khi không còn child hiển thị
+    const visibleChildren = Array.from(container.children).filter((child) => {
+        if (child.dataset.adblockHidden === "true" || child.dataset.adblockCollapsed === "true") return false;
+        return window.getComputedStyle(child).display !== "none";
+    });
+
+    return visibleChildren.length === 0;
+}
+
+function collapseParentChain(el, maxDepth = 10) {
+    let parent = el?.parentElement;
+    let depth = 0;  
+
+    while (parent && depth < maxDepth) {
+        if (shouldCollapseContainer(parent)) {
+            parent.dataset.adblockCollapsed = "true";
+            parent.style.setProperty("height", "0", "important");
+            parent.style.setProperty("min-height", "0", "important");
+            parent.style.setProperty("margin", "0", "important");
+            parent.style.setProperty("padding", "0", "important");
+            parent.style.setProperty("border", "0", "important");
+            parent.style.setProperty("overflow", "hidden", "important");
+        }
+        parent = parent.parentElement;
+        depth++;
+    }
+}
+
+// Tìm thẻ cha có thể collapse để tránh ô trắng
+function findBestHideTarget(el) {
+    if (!el) return el;
+
+    // Ưu tiên wrapper có tín hiệu ad để tránh để lại khoảng rỗng
+    const wrapper = el.closest(
+        "[class*='ad'], [class*='ads'],[id*='ad'],[class*='sponsor'],[id*='sponsor']," +
+        "[class*='promo'],[id*='promo'],[class*='banner'],[id*='banner']," +
+        "aside,.ads,.advertisement"
+    );
+
+    if (wrapper && wrapper !== document.body && wrapper !== document.documentElement) {
+        return wrapper;
+    }
+
+    return el;
+}
+
+function hideAndCollapse(el) {
+    const target = findBestHideTarget(el);
+    const hidden = hideElement(target);
+    if (hidden) collapseParentChain(target);
+    return hidden;
 }
