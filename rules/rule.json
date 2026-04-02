@@ -91,33 +91,6 @@
     }
   },
 
-  {
-    "id": 11,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "youtube.com/api/stats/ads",
-      "resourceTypes": ["xmlhttprequest","ping"]
-    }
-  },
-  {
-    "id": 12,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "youtube.com/pagead",
-      "resourceTypes": ["script","xmlhttprequest","sub_frame"]
-    }
-  },
-  {
-    "id": 13,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "youtube.com/ptracking",
-      "resourceTypes": ["xmlhttprequest","ping"]
-    }
-  },
 
   {
     "id": 14,
@@ -284,15 +257,6 @@
     }
   },
   {
-    "id": 32,
-    "priority": 1,
-    "action": { "type": "block" },
-    "condition": {
-      "urlFilter": "||youtube.com/get_video_info*adformat*",
-      "resourceTypes": ["xmlhttprequest"]
-    }
-  },
-  {
     "id": 33,
     "priority": 1,
     "action": { "type": "block" },
@@ -432,6 +396,15 @@
     "condition": {
       "urlFilter": "||triplelift.com^",
       "resourceTypes": ["script","xmlhttprequest","media","sub_frame"]
+    }
+  },
+  {
+    "id": 49,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "regexFilter": "^https?://([a-z0-9-]+\\.)*vads\\.net\\.vn/(Ad|ad)(\\?|$)",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
     }
   }
 ]

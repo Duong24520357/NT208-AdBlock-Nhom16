@@ -9,11 +9,68 @@ const tabBlockedCount = document.getElementById("tab-blocked-count");
 const totalBlockedCount = document.getElementById("total-blocked-count");
 const hostnameLabel = document.getElementById("hostname-label");
 const statusDot = document.getElementById("status-dot");
+const blockSiteBtn = document.getElementById("blocksite-btn");
+const blockDomainInput = document.getElementById("block-domain-input");
+const blockAddBtn = document.getElementById("block-add-btn");
+const blockedDomainsEl = document.getElementById("blocked-domains");
+const blocklistHint = document.getElementById("blocklist-hint");
 
 // Lưu state hiện tại và tab hiện tại
 let currentState = null;
 let currentTab = null;
 let updateInterval = null;
+
+function normalizeDomain(input) {
+    const raw = (input || "").trim().toLowerCase();
+    if (!raw) return null;
+
+    const candidate = raw.includes("://") ? raw : `http://${raw}`;
+    try {
+        const url = new URL(candidate);
+        let hostname = (url.hostname || "").toLowerCase();
+        if (hostname.startsWith("www.")) hostname = hostname.slice(4);
+        return hostname || null;
+    } catch {
+        return null;
+    }
+}
+
+function renderBlockedDomains(state) {
+    const domains = Array.isArray(state?.blockedDomains) ? state.blockedDomains : [];
+    blockedDomainsEl.textContent = "";
+    const currentHostname = (state?.hostname || "").toLowerCase();
+
+    if (domains.length === 0) {
+        blocklistHint.innerHTML = "Chưa có domain nào. <strong>Thêm domain</strong> để chặn trong giờ học.";
+        return;
+    }
+
+    blocklistHint.textContent = "Mẹo: chặn cả subdomain tự động (vd: www." + domains[0] + ")";
+    domains
+        .slice()
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((domain) => {
+            const item = document.createElement("div");
+            item.className = "blocked-item";
+            if (currentHostname && (currentHostname === domain || currentHostname.endsWith(`.${domain}`))) {
+                item.classList.add("blocked-item-active");
+            }
+
+            const label = document.createElement("div");
+            label.className = "blocked-domain";
+            label.textContent = domain;
+
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "blocked-remove";
+            removeBtn.type = "button";
+            removeBtn.textContent = "Xóa";
+            removeBtn.dataset.domain = domain;
+
+            item.appendChild(label);
+            item.appendChild(removeBtn);
+            blockedDomainsEl.appendChild(item);
+        });
+}
 
 
 // =============================================
@@ -71,6 +128,26 @@ function renderUI(state) {
     // --- Nút Element Picker ---
     pickerBtn.disabled = !state.enabled || state.whitelisted;
     pickerBtn.style.opacity = pickerBtn.disabled ? "0.5" : "1";
+
+    // --- Nút chặn trang (học tập) ---
+    if (!state.enabled) {
+        blockSiteBtn.disabled = true;
+        blockSiteBtn.style.opacity = "0.5";
+        blockSiteBtn.textContent = "Chặn trang này (học tập)";
+        blockSiteBtn.classList.remove("btn-study-on");
+    } else if (state.studyBlocked) {
+        blockSiteBtn.disabled = false;
+        blockSiteBtn.style.opacity = "1";
+        blockSiteBtn.textContent = "✅ Đang chặn trang này";
+        blockSiteBtn.classList.add("btn-study-on");
+    } else {
+        blockSiteBtn.disabled = false;
+        blockSiteBtn.style.opacity = "1";
+        blockSiteBtn.textContent = "🚫 Chặn trang này (học tập)";
+        blockSiteBtn.classList.remove("btn-study-on");
+    }
+
+    renderBlockedDomains(state);
 }
 
 
@@ -240,4 +317,97 @@ window.addEventListener("unload", stopRealtimeUpdate);
 document.addEventListener("DOMContentLoaded", async () => {
     await loadState();      // Load state từ background
     startRealtimeUpdate();  // Bắt đầu cập nhật realtime
+});
+
+// =============================================
+// BƯỚC 5B: XỬ LÝ BLOCKLIST (HỌC TẬP)
+// =============================================
+blockSiteBtn.addEventListener("click", async () => {
+    try {
+        if (!currentTab) return;
+        const hostname = new URL(currentTab.url).hostname;
+
+        // Update UI optimistic
+        const nextBlocked = !currentState.studyBlocked;
+        renderUI({
+            ...currentState,
+            studyBlocked: nextBlocked,
+            blockedDomains: nextBlocked
+                ? Array.from(new Set([...(currentState.blockedDomains || []), hostname]))
+                : (currentState.blockedDomains || []).filter((d) => d !== hostname)
+        });
+
+        await chrome.runtime.sendMessage({
+            type: "TOGGLE_BLOCKED_DOMAIN",
+            domain: hostname
+        });
+
+        // Reload để áp dụng chặn ngay trên trang hiện tại
+        if (currentTab?.id) {
+            chrome.tabs.reload(currentTab.id);
+        }
+
+        await loadState();
+    } catch (error) {
+        console.error("[Popup] Lỗi block site:", error);
+        renderUI(currentState);
+    }
+});
+
+blockAddBtn.addEventListener("click", async () => {
+    try {
+        const normalized = normalizeDomain(blockDomainInput.value);
+        if (!normalized) {
+            blocklistHint.textContent = "Domain không hợp lệ. Ví dụ: facebook.com";
+            return;
+        }
+
+        const result = await chrome.runtime.sendMessage({
+            type: "ADD_BLOCKED_DOMAIN",
+            domain: normalized
+        });
+
+        if (!result?.success) {
+            blocklistHint.textContent = "Không thêm được domain.";
+            return;
+        }
+
+        blockDomainInput.value = "";
+        await loadState();
+    } catch (error) {
+        console.error("[Popup] Lỗi thêm domain:", error);
+    }
+});
+
+blockDomainInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        blockAddBtn.click();
+    }
+});
+
+blockedDomainsEl.addEventListener("click", async (e) => {
+    try {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!target.classList.contains("blocked-remove")) return;
+        const domain = target.dataset.domain;
+        if (!domain) return;
+
+        await chrome.runtime.sendMessage({
+            type: "REMOVE_BLOCKED_DOMAIN",
+            domain
+        });
+
+        // Nếu xóa đúng domain đang mở, reload để bỏ chặn
+        if (currentTab?.url) {
+            const currentHost = new URL(currentTab.url).hostname;
+            if (normalizeDomain(currentHost) === normalizeDomain(domain)) {
+                chrome.tabs.reload(currentTab.id);
+            }
+        }
+
+        await loadState();
+    } catch (error) {
+        console.error("[Popup] Lỗi xóa domain:", error);
+    }
 });

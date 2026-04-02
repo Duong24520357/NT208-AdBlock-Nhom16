@@ -19,20 +19,39 @@ async function initialize() {
         }
 
         // Lưu trạng thái vào biến cục bộ
-        const { enabled, whitelisted } = response;
+        const { enabled, whitelisted, studyBlocked, hostname } = response;
 
-        // Nếu extension tắt hoặc domain trong whitelist → dừng
-        if (!enabled || whitelisted) {
-            console.log("[AdBlock] Không hoạt động trên trang này");
+        // Nếu extension tắt → dừng toàn bộ
+        if (!enabled) {
+            console.log("[AdBlock] Không hoạt động (tắt)");
             return;
         }
 
-        injectAdBlockCSS();
-        hideAds();
-        startObserver();
+        // Chặn domain theo danh sách học tập (chỉ top-frame)
+        if (studyBlocked && isTopFrame()) {
+            enforceStudyBlocked(hostname || window.location.hostname);
+            console.log("[AdBlock] Đã chặn truy cập (học tập):", hostname || window.location.hostname);
+            return;
+        }
 
-        // Đến đây → được phép chạy
-        console.log("[AdBlock] Bắt đầu chạy trên:", window.location.hostname);
+        // Domain trong whitelist → dừng chặn quảng cáo
+        if (whitelisted) {
+            console.log("[AdBlock] Không hoạt động trên trang này (whitelist)");
+            return;
+        }
+
+        const startAdBlock = () => {
+            injectAdBlockCSS();
+            hideAds();
+            startObserver();
+            console.log("[AdBlock] Bắt đầu chạy trên:", window.location.hostname);
+        };
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", startAdBlock, { once: true });
+        } else {
+            startAdBlock();
+        }
 
     } catch (error) {
         // Extension có thể bị reload → bắt lỗi để tránh crash trang
@@ -40,12 +59,153 @@ async function initialize() {
     }
 }
 
-// Gọi hàm initialize đúng thời điểm
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initialize);
-} else {
-    initialize();
+function isTopFrame() {
+    try {
+        return window.top === window.self;
+    } catch {
+        return true;
+    }
 }
+
+function normalizeHostname(input) {
+    let hostname = (input || "").trim().toLowerCase();
+    if (!hostname) return "";
+    if (hostname.startsWith("www.")) hostname = hostname.slice(4);
+    return hostname;
+}
+
+function isHostnameBlocked(currentHostname, blockedDomains) {
+    const host = normalizeHostname(currentHostname);
+    if (!host) return false;
+    const list = Array.isArray(blockedDomains) ? blockedDomains : [];
+    return list.some((domain) => {
+        const d = normalizeHostname(domain);
+        return d && (host === d || host.endsWith(`.${d}`));
+    });
+}
+
+let studyBlockObserver = null;
+
+function enforceStudyBlocked(hostname) {
+    if (!isTopFrame()) return;
+    if (document.documentElement?.dataset?.adblockStudyBlocked === "true") {
+        // Overlay có thể bị xóa bởi site script → đảm bảo còn tồn tại
+        showStudyBlockedOverlay(hostname);
+        return;
+    }
+
+    try { window.stop(); } catch { /* ignore */ }
+
+    // Reset DOM về trang trắng để giảm "rác" và làm cảm giác chặn mạnh hơn
+    const docEl = document.documentElement;
+    if (docEl) {
+        docEl.dataset.adblockStudyBlocked = "true";
+        while (docEl.firstChild) {
+            docEl.removeChild(docEl.firstChild);
+        }
+
+        const head = document.createElement("head");
+        const title = document.createElement("title");
+        title.textContent = "Giờ học";
+        head.appendChild(title);
+
+        const body = document.createElement("body");
+        body.style.margin = "0";
+        body.style.height = "100vh";
+        body.style.background = "#000";
+
+        docEl.appendChild(head);
+        docEl.appendChild(body);
+    }
+
+    showStudyBlockedOverlay(hostname);
+
+    // Giữ overlay luôn tồn tại (site script có thể cố gỡ)
+    if (!studyBlockObserver && docEl) {
+        studyBlockObserver = new MutationObserver(() => {
+            if (!document.getElementById("adblock-study-blocked")) {
+                showStudyBlockedOverlay(hostname);
+            }
+        });
+        studyBlockObserver.observe(docEl, { childList: true, subtree: true });
+    }
+}
+
+function showStudyBlockedOverlay(hostname) {
+    if (document.getElementById("adblock-study-blocked")) return;
+
+    // Đảm bảo có body để append
+    if (!document.body) {
+        const body = document.createElement("body");
+        document.documentElement?.appendChild(body);
+    }
+
+    const overlay = document.createElement("div");
+    overlay.id = "adblock-study-blocked";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "z-index:2147483647",
+        "background:rgba(0,0,0,0.92)",
+        "color:#fff",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "padding:24px",
+        "font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        "text-align:center",
+    ].join(";");
+
+    const box = document.createElement("div");
+    box.style.cssText = [
+        "max-width:520px",
+        "width:100%",
+        "border:1px solid rgba(255,255,255,0.15)",
+        "border-radius:12px",
+        "padding:18px",
+        "background:rgba(255,255,255,0.06)",
+    ].join(";");
+
+    const title = document.createElement("div");
+    title.textContent = "Đang trong giờ học, vui lòng chú ý";
+    title.style.cssText = "font-size:18px;font-weight:800;margin-bottom:10px;";
+
+    const desc = document.createElement("div");
+    desc.textContent = `Domain: ${hostname || "(không xác định)"}. Mở popup extension để bỏ chặn nếu cần.`;
+    desc.style.cssText = "font-size:13px;opacity:0.9;line-height:1.5;";
+
+    box.appendChild(title);
+    box.appendChild(desc);
+    overlay.appendChild(box);
+
+    // Chặn tương tác trang
+    document.documentElement?.style.setProperty("overflow", "hidden", "important");
+    overlay.style.setProperty("pointer-events", "auto", "important");
+
+    (document.body || document.documentElement).appendChild(overlay);
+}
+
+// Pre-check nhanh từ storage để chặn sớm (service worker đôi khi wake-up chậm)
+(async () => {
+    try {
+        if (!isTopFrame()) return;
+        const currentHostname = window.location.hostname;
+        const saved = await chrome.storage.local.get("adblockState");
+        const adblockState = saved?.adblockState || {};
+        const enabled = adblockState.enabled !== false; // default true
+        const blockedDomains = adblockState.blockedDomains || [];
+        if (enabled && isHostnameBlocked(currentHostname, blockedDomains)) {
+            enforceStudyBlocked(currentHostname);
+        }
+    } catch {
+        // ignore
+    }
+})();
+
+// Gọi hàm initialize ngay khi content script chạy
+initialize();
 
 // Hàm khai báo danh sách các selector của quảng cáo
 const adSelectors = [
@@ -78,19 +238,20 @@ const adSelectors = [
     "div[class*='box-landing']",
 
     // Quảng cáo chung theo class/id phổ biến
-    "div[class*='banner-ad']",
-    "div[class*='advertisement']",
-    "div[class*='ad-container']",
-    "div[class*='ad-wrapper']",
-    "div[id*='ad-container']",
-    "div[id*='ad-banner']",
-    "div[id*='sponsor']",
-    "div[class*='sponsor']",
+    // "div[class*='banner-ad']",
+    // "div[class*='advertisement']",
+    // "div[class*='ad-container']",
+    // "div[class*='ad-wrapper']",
+    // "div[id*='ad-container']",
+    // "div[id*='ad-banner']",
+    // "div[id*='sponsor']",
+    // "div[class*='sponsor']",
 
     // Iframe quảng cáo
     "iframe[src*='ads']",
     "iframe[src*='adservice']",
     "iframe[id*='ad-']",
+    "iframe[src*='vads.net.vn']",
 
     // Facebook Ads
     "div[data-testid='placementTracking']",
@@ -159,6 +320,7 @@ const adSelectors = [
     "[class*='vpaid']",
     "[class*='ima-ad']",
     "[class*='video-ad-container']",
+    "[class*='ads-desktop']",
     "div[id*='outstream']",
     "div[id*='preroll']",
     "div[id*='midroll']",
@@ -170,6 +332,7 @@ const adSelectors = [
     "[data-adunit]",
     "[data-video-ad]",
     "[data-ad-network]",
+    
 ];
 
 // Danh sách domain quảng cáo dùng chung cho các hàm phát hiện
@@ -196,6 +359,7 @@ const AD_DOMAINS = [
     "yieldmo.com",
     "sharethrough.com",
     "triplelift.com",
+    "vads.net.vn",
 ];
 
 // Selector wrapper quảng cáo an toàn, tránh match các class/id chứa "ad" chung chung
