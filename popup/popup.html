@@ -60,6 +60,10 @@
             </svg>
             Tắt cho trang này
         </button>
+
+        <button id="blocksite-btn" class="btn btn-secondary">
+            Chặn trang này (học tập)
+        </button>
         <button id="picker-btn" class="btn btn-secondary">
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -70,6 +74,16 @@
             </svg>
             Chặn phần tử
         </button>
+    </section>
+
+    <section class="blocklist-section">
+        <div class="blocklist-title">Danh sách chặn (học tập)</div>
+        <div class="blocklist-row">
+            <input id="block-domain-input" class="blocklist-input" type="text" placeholder="vd: facebook.com" />
+            <button id="block-add-btn" class="blocklist-add">Thêm</button>
+        </div>
+        <div id="blocked-domains" class="blocked-domains"></div>
+        <div id="blocklist-hint" class="blocklist-hint"></div>
     </section>
 
     <footer class="footer">

@@ -295,6 +295,125 @@ input:checked + .slider::before {
     background: transparent; /* Bỏ nền đặc đi để các nút nổi lên */
 }
 
+/* =============================================
+   STUDY BLOCKLIST SECTION
+   ============================================= */
+.blocklist-section {
+    margin: 0 16px 16px 16px;
+    padding: 14px 16px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.blocklist-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.blocklist-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.blocklist-input {
+    flex: 1;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: rgba(30, 41, 59, 0.4);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.blocklist-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.blocklist-add {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    font-weight: 700;
+}
+
+.blocklist-add:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.blocked-domains {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 130px;
+    overflow: auto;
+}
+
+.blocked-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: rgba(30, 41, 59, 0.25);
+}
+
+.blocked-item-active {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
+}
+
+.blocked-domain {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.blocked-remove {
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    font-weight: 700;
+}
+
+.blocked-remove:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.blocklist-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.blocklist-hint strong {
+    color: var(--text-primary);
+}
+
 .btn {
     width: 100%;
     padding: 12px;
@@ -349,6 +468,19 @@ input:checked + .slider::before {
     background: var(--bg-surface-hover); /* Khi di chuột vào mới hiện nền */
     color: var(--text-primary); /* Chữ sáng lên */
     border-color: var(--text-secondary);
+}
+
+/* Nút chặn học tập - trạng thái đang bật */
+.btn-study-on {
+    background: var(--accent-red);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
+}
+
+.btn-study-on:hover:not(:disabled) {
+    filter: brightness(0.95);
+    box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
 }
 
 /* Tạo hiệu ứng nhịp thở */

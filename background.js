@@ -3,6 +3,7 @@
 const defaultState = {
     enabled: true,
     whitelist: [],
+    blockedDomains: [],
     blockedPerTab: {},
     totalBlocked: 0,
 };
@@ -36,9 +37,69 @@ async function saveState() {
         "adblockState": {
             enabled: state.enabled,
             whitelist: state.whitelist,
+            blockedDomains: state.blockedDomains,
             totalBlocked: state.totalBlocked
         }
     })
+}
+
+function normalizeDomain(input) {
+    const raw = (input || "").trim().toLowerCase();
+    if (!raw) return null;
+
+    const candidate = raw.includes("://") ? raw : `http://${raw}`;
+    try {
+        const url = new URL(candidate);
+        let hostname = (url.hostname || "").toLowerCase();
+        if (hostname.startsWith("www.")) hostname = hostname.slice(4);
+        return hostname || null;
+    } catch {
+        return null;
+    }
+}
+
+async function addBlockedDomain(domainInput) {
+    const hostname = normalizeDomain(domainInput);
+    if (!hostname) return { success: false, error: "INVALID_DOMAIN" };
+    state.blockedDomains = Array.isArray(state.blockedDomains) ? state.blockedDomains : [];
+
+    if (!state.blockedDomains.includes(hostname)) {
+        state.blockedDomains.push(hostname);
+        await saveState();
+    }
+
+    return { success: true, hostname };
+}
+
+async function removeBlockedDomain(domainInput) {
+    const hostname = normalizeDomain(domainInput);
+    if (!hostname) return { success: false, error: "INVALID_DOMAIN" };
+
+    state.blockedDomains = Array.isArray(state.blockedDomains) ? state.blockedDomains : [];
+    const index = state.blockedDomains.indexOf(hostname);
+    if (index !== -1) {
+        state.blockedDomains.splice(index, 1);
+        await saveState();
+    }
+
+    return { success: true, hostname };
+}
+
+async function toggleBlockedDomain(domainInput) {
+    const hostname = normalizeDomain(domainInput);
+    if (!hostname) return { success: false, error: "INVALID_DOMAIN" };
+
+    state.blockedDomains = Array.isArray(state.blockedDomains) ? state.blockedDomains : [];
+    const index = state.blockedDomains.indexOf(hostname);
+    const nowBlocked = index === -1;
+    if (nowBlocked) {
+        state.blockedDomains.push(hostname);
+    } else {
+        state.blockedDomains.splice(index, 1);
+    }
+
+    await saveState();
+    return { success: true, hostname, blocked: nowBlocked };
 }
 
 // Hàm đọc state từ storage và áp dụng khi extension được cài đặt hoặc Chrome khởi động
@@ -133,17 +194,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         // Popup hỏi trạng thái hiện tại
         case "GET_STATE":
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                const tab = tabs[0];
-                const hostname = tab?.url ? new URL(tab.url).hostname : "";
-                sendResponse({
-                    enabled: state.enabled,
-                    totalBlocked: state.totalBlocked,
-                    tabBlocked: state.blockedPerTab[tab?.id] || 0,
-                    whitelisted: state.whitelist.includes(hostname),
-                    hostname: hostname
-                });
-            });
+            {
+                const resolveTab = (tab) => {
+                    const hostname = tab?.url ? new URL(tab.url).hostname : "";
+                    const blockedDomains = state.blockedDomains || [];
+                    sendResponse({
+                        enabled: state.enabled,
+                        totalBlocked: state.totalBlocked,
+                        tabBlocked: state.blockedPerTab[tab?.id] || 0,
+                        whitelisted: state.whitelist.includes(hostname),
+                        hostname: hostname,
+                        blockedDomains,
+                        studyBlocked: blockedDomains.includes(hostname)
+                    });
+                };
+
+                const tabId = message.tabId || sender.tab?.id;
+                if (tabId) {
+                    chrome.tabs.get(tabId, (tab) => resolveTab(tab));
+                } else {
+                    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolveTab(tabs[0]));
+                }
+            }
             return true;  // ⚠️ Bắt buộc có dòng này khi dùng async sendResponse
 
         // Popup bật/tắt AdBlock
@@ -157,6 +229,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "TOGGLE_WHITELIST":
             toggleWhitelist(message.hostname).then(() => {
                 sendResponse({ success: true });
+            });
+            return true;
+
+        // Popup thêm domain vào danh sách chặn (học tập)
+        case "ADD_BLOCKED_DOMAIN":
+            addBlockedDomain(message.domain).then((result) => {
+                sendResponse(result);
+            });
+            return true;
+
+        // Popup xóa domain khỏi danh sách chặn
+        case "REMOVE_BLOCKED_DOMAIN":
+            removeBlockedDomain(message.domain).then((result) => {
+                sendResponse(result);
+            });
+            return true;
+
+        // Toggle chặn/bỏ chặn domain (thường dùng cho trang hiện tại)
+        case "TOGGLE_BLOCKED_DOMAIN":
+            toggleBlockedDomain(message.domain).then((result) => {
+                sendResponse(result);
             });
             return true;
 
