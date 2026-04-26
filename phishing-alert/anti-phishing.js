@@ -10,7 +10,6 @@ const phishingDomains = [
 const rules = phishingDomains.map((domain, index) => {
     return {
         // Cộng thêm 10000 để ID của bạn không bao giờ trùng với ID 
-        // của tính năng AdBlock do bạn Quốc Dương làm
         id: index + 10000, 
         priority: 1,
         action: { type: "block" },
