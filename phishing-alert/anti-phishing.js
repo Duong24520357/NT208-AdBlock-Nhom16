@@ -35,22 +35,38 @@ function applyRules(domains) {
 // 3. (TÍNH NĂNG MỞ RỘNG) Cập nhật danh sách đen từ Server (GitHub)
 async function fetchDynamicBlacklist() {
     try {
-        // Đây là link giả lập. Nhóm bạn có thể tự tạo 1 file blacklist.json đẩy lên GitHub
-        // và dán link dạng Raw vào đây để điều khiển từ xa!
-        const response = await fetch ('https://raw.githubusercontent.com/Duong24520357/NT208-AdBlock-Nhom16/refs/heads/feature/anti-phishing/blacklist.json');
+        console.log("⏳ Đang kết nối với OpenPhish để tải danh sách lừa đảo mới nhất...");
+        
+        // Gọi API lấy file text thô từ máy chủ OpenPhish
+        const response = await fetch('https://openphish.com/feed.txt');
         
         if (response.ok) {
-            const data = await response.json();
-            // Nếu fetch thành công, ghi đè danh sách mặc định
-            if (data && data.domains) {
-                phishingDomains = data.domains;
-                console.log("Đã tải danh sách đen mới nhất từ Server.");
-            }
+            const textData = await response.text();
+            
+            // 1. Tách chuỗi dài thành một mảng, mỗi dòng là 1 URL
+            const urlList = textData.split('\n').filter(url => url.trim() !== '');
+            
+            // 2. Rút trích chỉ lấy "tên miền" (Ví dụ: từ http://luadao.com/login.php -> luadao.com)
+            const fetchedDomains = urlList.map(url => {
+                try { 
+                    return new URL(url).hostname; 
+                } catch (e) { 
+                    return null; // Bỏ qua những dòng không phải định dạng URL
+                }
+            }).filter(domain => domain !== null);
+
+            // 3. Lọc trùng lặp: OpenPhish có thể có 2 link lừa đảo nằm trên cùng 1 web
+            // Dùng Set() để loại bỏ tên miền trùng, giúp Chrome chạy nhẹ hơn
+            phishingDomains = [...new Set(fetchedDomains)];
+            
+            console.log(`✅ Đã tải và nạp thành công ${phishingDomains.length} tên miền lừa đảo zero-day!`);
+        } else {
+            console.log("❌ Máy chủ OpenPhish bận, sử dụng danh sách lưu trữ tạm trong máy.");
         }
     } catch (error) {
-        console.log("Không thể kết nối máy chủ, sử dụng danh sách đen mặc định cục bộ.");
+        console.log("🌐 Mất mạng hoặc bị chặn kết nối, sử dụng danh sách dự phòng.");
     } finally {
-        // Dù thành công hay thất bại (mất mạng), vẫn phải áp dụng lệnh chặn
+        // Cuối cùng: Nạp danh sách (vừa tải về hoặc mặc định) vào lõi chặn mạng của Chrome
         applyRules(phishingDomains);
     }
 }
