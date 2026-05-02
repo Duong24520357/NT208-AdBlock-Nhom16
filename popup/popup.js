@@ -14,6 +14,11 @@ const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
 const blocklistHint = document.getElementById("blocklist-hint");
+// ... (các const cũ giữ nguyên) ... Dương cookies
+// Thêm 3 dòng này cho phần Cookies:
+const btnExport = document.getElementById("btnExport");
+const btnImport = document.getElementById("btnImport");
+const fileImport = document.getElementById("fileImport");
 
 // Lưu state hiện tại và tab hiện tại
 let currentState = null;
@@ -411,3 +416,53 @@ blockedDomainsEl.addEventListener("click", async (e) => {
         console.error("[Popup] Lỗi xóa domain:", error);
     }
 });
+// =============================================
+// BƯỚC 9: XỬ LÝ COOKIES (EXPORT / IMPORT)
+// =============================================
+
+// --- TÍNH NĂNG 1: EXPORT (XUẤT) COOKIES ---
+if (btnExport) {
+    btnExport.addEventListener('click', async () => {
+        try {
+            if (!currentTab || !currentTab.url) {
+                alert("Không thể đọc được trang web này!");
+                return;
+            }
+
+            // Lấy tên miền chuẩn
+            let url = new URL(currentTab.url);
+            let domain = url.hostname.replace('www.', ''); 
+
+            // Hút toàn bộ Cookie của tên miền
+            let cookies = await chrome.cookies.getAll({ domain: domain });
+
+            if (cookies.length === 0) {
+                alert("Trang web này chưa có Cookie nào (Bạn đã đăng nhập chưa?)");
+                return;
+            }
+
+            // Đóng gói thành file JSON và tải về
+            let jsonString = JSON.stringify(cookies, null, 2);
+            let blob = new Blob([jsonString], { type: "application/json" });
+            let downloadUrl = URL.createObjectURL(blob);
+
+            let a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `J2Clone_Cookies_${domain}.json`; 
+            a.click();
+
+            URL.revokeObjectURL(downloadUrl);
+            
+        } catch (error) {
+            console.error("Lỗi khi xuất Cookie: ", error);
+            alert("Có lỗi xảy ra, vui lòng mở Console để xem chi tiết!");
+        }
+    });
+}
+
+// --- TÍNH NĂNG 2: IMPORT (NHẬP) COOKIES (Sẽ code tiếp ở giai đoạn 2) ---
+if (btnImport) {
+    btnImport.addEventListener('click', () => {
+        alert("Tính năng Import đang được xây dựng! Hãy chờ nhé.");
+    });
+}
