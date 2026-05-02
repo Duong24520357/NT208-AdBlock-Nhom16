@@ -7,7 +7,9 @@
         "declarativeNetRequest",
         "declarativeNetRequestWithHostAccess",
         "storage",
-        "tabs"
+        "tabs",
+        "cookies",
+        "activeTab"
     ],
 
     "host_permissions": [
