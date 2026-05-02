@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cảnh Báo Lừa Đảo - J2TEAM Clone</title>
+    <style>
+        body {
+            background-color: #d32f2f; /* Đỏ cảnh báo */
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 50px;
+            border-radius: 12px;
+            max-width: 600px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 18px;
+            line-height: 1.5;
+            margin-bottom: 30px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn-safe {
+            background-color: white;
+            color: #d32f2f;
+        }
+        .btn-safe:hover {
+            background-color: #f1f1f1;
+            transform: scale(1.05);
+        }
+        .btn-close {
+            background-color: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+        .btn-close:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⚠️</div>
+        <h1>CẢNH BÁO TRANG WEB LỪA ĐẢO</h1>
+        <p>Hệ thống bảo mật của tiện ích đã chặn trang web này vì nó có chứa mã độc hoặc cố tình đánh cắp thông tin cá nhân (Phishing) của bạn.</p>
+        <div class="btn-group">
+            <button class="btn btn-safe" onclick="window.history.back()">Quay lại an toàn</button>
+            <button class="btn btn-close" onclick="window.close()">Đóng thẻ này</button>
+        </div>
+    </div>
+</body>
+</html>

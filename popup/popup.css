@@ -2,507 +2,585 @@
    VARIABLES (Hệ màu hiện đại)
    ============================================= */
 :root {
-    --bg-base: #0f172a;        /* Xám tối (Slate 900) */
-    --bg-surface: #1e293b;     /* Xám sáng hơn (Slate 800) */
-    --bg-surface-hover: #334155;
-    
-    --text-primary: #f8fafc;   /* Trắng sáng */
-    --text-secondary: #94a3b8; /* Xám nhạt dễ đọc */
-    
-    --border-light: #334155;   /* Đường viền mỏng */
-    
-    --accent-red: #f43f5e;     /* Đỏ Rose hiện đại */
-    --accent-green: #10b981;   /* Xanh Emerald */
-    --accent-green-glow: rgba(16, 185, 129, 0.3);
-    
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-pill: 99px;
-    
-    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --bg-base: #0f172a; /* Xám tối (Slate 900) */
+  --bg-surface: #1e293b; /* Xám sáng hơn (Slate 800) */
+  --bg-surface-hover: #334155;
+
+  --text-primary: #f8fafc; /* Trắng sáng */
+  --text-secondary: #94a3b8; /* Xám nhạt dễ đọc */
+
+  --border-light: #334155; /* Đường viền mỏng */
+
+  --accent-red: #f43f5e; /* Đỏ Rose hiện đại */
+  --accent-green: #10b981; /* Xanh Emerald */
+  --accent-green-glow: rgba(16, 185, 129, 0.3);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-pill: 99px;
+
+  --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* =============================================
    RESET & BASE
    ============================================= */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; /* Thêm font hệ thống hiện đại */
-    background: var(--bg-base);
-    color: var(--text-primary);
-    width: 320px; /* Tăng nhẹ chiều rộng để thoáng hơn */
-    min-height: 200px;
-    user-select: none;
-    -webkit-font-smoothing: antialiased; /* Giúp font chữ sắc nét hơn */
+  font-family:
+    "Inter", "Segoe UI", system-ui, sans-serif; /* Thêm font hệ thống hiện đại */
+  background: var(--bg-base);
+  color: var(--text-primary);
+  width: 320px; /* Tăng nhẹ chiều rộng để thoáng hơn */
+  min-height: 200px;
+  user-select: none;
+  -webkit-font-smoothing: antialiased; /* Giúp font chữ sắc nét hơn */
 }
 
 /* =============================================
    HEADER
    ============================================= */
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    
-    /* Phong cách thẻ bo góc */
-    background: var(--bg-surface);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-light);
-    margin: 16px 16px 0 16px; /* Cách lề trên và 2 bên 16px, không cách dưới */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+
+  /* Phong cách thẻ bo góc */
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  margin: 16px 16px 0 16px; /* Cách lề trên và 2 bên 16px, không cách dưới */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
 .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .logo {
-    width: 40px; 
-    height: 40px;
-    border-radius: var(--radius-sm);
-    object-fit: contain;
-    /* Thêm hiệu ứng phát sáng màu đỏ hồng cho logo */
-    filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.4));
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  /* Thêm hiệu ứng phát sáng màu đỏ hồng cho logo */
+  filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.4));
 }
 
 .app-name {
-    font-size: 20px;
-    font-weight: 800;
-    background: linear-gradient(135deg, #f43f5e, #fb7185);
-    
-    -webkit-background-clip: text; 
-    
-    background-clip: text; 
-    
-    -webkit-text-fill-color: transparent;
-    letter-spacing: 0.5px;
+  font-size: 20px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #f43f5e, #fb7185);
+
+  -webkit-background-clip: text;
+
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 0.5px;
 }
 
 .status-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--accent-green);
-    box-shadow: 0 0 10px var(--accent-green-glow);
-    transition: var(--transition-smooth);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 10px var(--accent-green-glow);
+  transition: var(--transition-smooth);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
 }
 
 /* =============================================
    TOGGLE SECTION
    ============================================= */
 .toggle-section {
-    display: flex;
-    flex-direction: row; /* Ép buộc luôn nằm ngang */
-    flex-wrap: nowrap;   /* Tuyệt đối không cho rớt dòng */
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 16px;
-    
-    /* Phong cách Thẻ (Card) bo góc */
-    background: var(--bg-surface);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-light);
-    margin: 16px; /* Cách đều các lề 16px */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: row; /* Ép buộc luôn nằm ngang */
+  flex-wrap: nowrap; /* Tuyệt đối không cho rớt dòng */
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+
+  /* Phong cách Thẻ (Card) bo góc */
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  margin: 16px; /* Cách đều các lề 16px */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
 /* --- 2. SỬA LẠI KHỐI THỐNG KÊ --- */
 .stats-section {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-around;
-    padding: 16px;
-    
-    background: var(--bg-surface);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-light);
-    margin: 0 16px 16px 16px; /* Thụt 2 bên vào 16px, cách dưới 16px */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  padding: 16px;
+
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  margin: 0 16px 16px 16px; /* Thụt 2 bên vào 16px, cách dưới 16px */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
 /* --- 3. ĐẢM BẢO FOOTER DÍNH LIỀN KHỐI --- */
 .footer {
-    text-align: center;
-    padding: 0 0 16px 0; /* Chỉ cách đáy 16px */
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    
-    /* Bỏ nền đặc và viền để chữ nổi bật trên nền app */
-    background: transparent; 
-    border-top: none;
+  text-align: center;
+  padding: 0 0 16px 0; /* Chỉ cách đáy 16px */
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+
+  /* Bỏ nền đặc và viền để chữ nổi bật trên nền app */
+  background: transparent;
+  border-top: none;
+}
+
+.download-section {
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  margin: 0 16px 16px 16px;
+  padding: 12px;
+}
+
+.download-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.download-row {
+  display: flex;
+  gap: 8px;
+}
+
+.download-input {
+  flex: 1;
+  min-width: 0;
+  background: #0b1220;
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.download-input:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+}
+
+.download-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #06221c;
+  background: #34d399;
+  transition: var(--transition-smooth);
+}
+
+.download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.download-status {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.download-status.is-success {
+  color: #34d399;
+}
+
+.download-status.is-error {
+  color: #fb7185;
 }
 
 .toggle-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .toggle-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .toggle-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--accent-green);
-    transition: var(--transition-smooth);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-green);
+  transition: var(--transition-smooth);
 }
 
 /* Toggle Switch Hiện đại */
 .switch {
-    position: relative;
-    display: inline-block;
-    width: 52px;
-    height: 28px;
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
 }
 
 .switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
 .slider {
-    position: absolute;
-    cursor: pointer;
-    inset: 0;
-    background: var(--border-light);
-    border-radius: var(--radius-pill);
-    transition: var(--transition-smooth);
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--border-light);
+  border-radius: var(--radius-pill);
+  transition: var(--transition-smooth);
 }
 
 .slider::before {
-    content: '';
-    position: absolute;
-    height: 20px;
-    width: 20px;
-    left: 4px;
-    bottom: 4px;
-    background: white;
-    border-radius: 50%;
-    transition: var(--transition-smooth);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  content: "";
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background: white;
+  border-radius: 50%;
+  transition: var(--transition-smooth);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 input:checked + .slider {
-    background: var(--accent-green);
-    box-shadow: 0 0 12px var(--accent-green-glow);
+  background: var(--accent-green);
+  box-shadow: 0 0 12px var(--accent-green-glow);
 }
 
 input:checked + .slider::before {
-    transform: translateX(24px);
+  transform: translateX(24px);
 }
 
 /* =============================================
    DIVIDER
    ============================================= */
 .divider {
-    display: none;
+  display: none;
 }
 
 /* =============================================
    STATS SECTION
    ============================================= */
 .stats-section {
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    padding: 20px 16px;
-    background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 20px 16px;
+  background: var(--bg-surface);
 }
 
 .stat-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
 }
 
 .stat-number {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--text-primary); /* Đổi sang màu trắng để bớt gắt */
-    line-height: 1;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary); /* Đổi sang màu trắng để bớt gắt */
+  line-height: 1;
 }
 
 .stat-desc {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 
 .stat-divider {
-    width: 1px;
-    height: 40px;
-    background: var(--border-light);
+  width: 1px;
+  height: 40px;
+  background: var(--border-light);
 }
 
 /* =============================================
    DOMAIN SECTION
    ============================================= */
 .domain-section {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    
-    background: rgba(30, 41, 59, 0.4); /* Nền mờ ảo */
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-light);
-    margin: 0 16px 16px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+
+  background: rgba(30, 41, 59, 0.4); /* Nền mờ ảo */
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  margin: 0 16px 16px 16px;
 }
 
 .domain-icon {
-    font-size: 16px;
-    color: var(--text-secondary);
+  font-size: 16px;
+  color: var(--text-secondary);
 }
 
 .hostname {
-    font-size: 14px; /* Cho to lên một xíu */
-    font-weight: 600; /* In đậm chữ */
-    color: var(--text-primary); /* Đổi sang màu trắng sáng */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 230px;
+  font-size: 14px; /* Cho to lên một xíu */
+  font-weight: 600; /* In đậm chữ */
+  color: var(--text-primary); /* Đổi sang màu trắng sáng */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
 }
 
 /* =============================================
    ACTIONS SECTION
    ============================================= */
 .actions-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 16px 16px 16px; /* Căn lề cho khớp với các thẻ ở trên */
-    background: transparent; /* Bỏ nền đặc đi để các nút nổi lên */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 16px 16px; /* Căn lề cho khớp với các thẻ ở trên */
+  background: transparent; /* Bỏ nền đặc đi để các nút nổi lên */
 }
 
 /* =============================================
    STUDY BLOCKLIST SECTION
    ============================================= */
 .blocklist-section {
-    margin: 0 16px 16px 16px;
-    padding: 14px 16px;
-    background: var(--bg-surface);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-light);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  margin: 0 16px 16px 16px;
+  padding: 14px 16px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
 .blocklist-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
 }
 
 .blocklist-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .blocklist-input {
-    flex: 1;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-    background: rgba(30, 41, 59, 0.4);
-    color: var(--text-primary);
-    outline: none;
+  flex: 1;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: rgba(30, 41, 59, 0.4);
+  color: var(--text-primary);
+  outline: none;
 }
 
 .blocklist-input::placeholder {
-    color: var(--text-secondary);
+  color: var(--text-secondary);
 }
 
 .blocklist-add {
-    height: 34px;
-    padding: 0 12px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    font-weight: 700;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-weight: 700;
 }
 
 .blocklist-add:hover {
-    background: var(--bg-surface-hover);
-    color: var(--text-primary);
-    border-color: var(--text-secondary);
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
 }
 
 .blocked-domains {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 130px;
-    overflow: auto;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 130px;
+  overflow: auto;
 }
 
 .blocked-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-    background: rgba(30, 41, 59, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: rgba(30, 41, 59, 0.25);
 }
 
 .blocked-item-active {
-    border-color: var(--accent-green);
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
 }
 
 .blocked-domain {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .blocked-remove {
-    border: 1px solid var(--border-light);
-    background: transparent;
-    color: var(--text-secondary);
-    border-radius: var(--radius-sm);
-    padding: 6px 8px;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    font-weight: 700;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-weight: 700;
 }
 
 .blocked-remove:hover {
-    background: var(--bg-surface-hover);
-    color: var(--text-primary);
-    border-color: var(--text-secondary);
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
 }
 
 .blocklist-hint {
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--text-secondary);
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .blocklist-hint strong {
-    color: var(--text-primary);
+  color: var(--text-primary);
 }
 
 .btn {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: var(--radius-md); /* Bo góc to hơn */
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    letter-spacing: 0.3px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px; /* Dành cho việc chèn thêm icon vào nút sau này */
-    transition: transform 0.1s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-md); /* Bo góc to hơn */
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  letter-spacing: 0.3px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px; /* Dành cho việc chèn thêm icon vào nút sau này */
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
 
 .btn:hover:not(:disabled) {
-    transform: translateY(-2px);
+  transform: translateY(-2px);
 }
 
 .btn:active:not(:disabled) {
-    transform: scale(0.98);
+  transform: scale(0.98);
 }
 
 .btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-    transform: none;
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
 }
 
 /* Nút đỏ dịu hơn */
 .btn-danger {
-    background: var(--accent-red);
-    color: white;
-    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
+  background: var(--accent-red);
+  color: white;
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
 }
 
 .btn-danger:hover:not(:disabled) {
-    background: #e11d48; /* Tối đi 1 chút khi hover */
-    box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
+  background: #e11d48; /* Tối đi 1 chút khi hover */
+  box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
 }
 
 /* Nút phụ xám hiện đại */
 .btn-secondary {
-    background: transparent; /* Xóa nền đặc */
-    color: var(--text-secondary); /* Chữ xám sáng */
-    border: 1px solid var(--border-light); /* Thêm viền mỏng */
+  background: transparent; /* Xóa nền đặc */
+  color: var(--text-secondary); /* Chữ xám sáng */
+  border: 1px solid var(--border-light); /* Thêm viền mỏng */
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: var(--bg-surface-hover); /* Khi di chuột vào mới hiện nền */
-    color: var(--text-primary); /* Chữ sáng lên */
-    border-color: var(--text-secondary);
+  background: var(--bg-surface-hover); /* Khi di chuột vào mới hiện nền */
+  color: var(--text-primary); /* Chữ sáng lên */
+  border-color: var(--text-secondary);
 }
 
 /* Nút chặn học tập - trạng thái đang bật */
 .btn-study-on {
-    background: var(--accent-red);
-    color: white;
-    border: none;
-    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
+  background: var(--accent-red);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
 }
 
 .btn-study-on:hover:not(:disabled) {
-    filter: brightness(0.95);
-    box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
+  filter: brightness(0.95);
+  box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
 }
 
 /* Tạo hiệu ứng nhịp thở */
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-    70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 /* Áp dụng vào chấm xanh */
 .status-dot {
-    animation: pulse 2s infinite; /* Chạy liên tục */
+  animation: pulse 2s infinite; /* Chạy liên tục */
 }
 
 /* =============================================
    FOOTER
    ============================================= */
 .footer {
-    text-align: center;
-    padding: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    background: var(--bg-base);
+  text-align: center;
+  padding: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-base);
 }

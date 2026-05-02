@@ -1,5 +1,5 @@
 // State mặc đinh của extension
-importScripts('anti-phishing.js'); //ngăn phishing
+importScripts('phishing-alert/anti-phishing.js'); //ngăn phishing
 const defaultState = {
     enabled: true,
     whitelist: [],
