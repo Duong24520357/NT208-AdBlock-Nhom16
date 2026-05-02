@@ -39,5 +39,11 @@
     "action": {
         "default_popup": "popup/popup.html",
         "default_title": "AdBlock Extension"
+    },
+    "web_accessible_resources": [
+    {
+      "resources": ["phishing-alert.html"],
+      "matches": ["<all_urls>"]
     }
+  ]
 }
