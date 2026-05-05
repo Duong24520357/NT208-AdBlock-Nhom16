@@ -14,16 +14,12 @@ const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
 const blocklistHint = document.getElementById("blocklist-hint");
-
-// --- DOM Elements cho phần Cookies ---
-const btnExport = document.getElementById("btnExport");
-const btnImport = document.getElementById("btnImport");
-const fileImport = document.getElementById("fileImport");
-
-// --- DOM Elements & Biến cho phần Tải Video ---
 const videoUrlInput = document.getElementById("video-url-input");
 const downloadBtn = document.getElementById("download-btn");
 const downloadStatus = document.getElementById("download-status");
+const captureFullPageBtn = document.getElementById("capture-fullpage-btn");
+const captureStatus = document.getElementById("capture-status");
+
 const BACKEND_BASE_URL = "http://127.0.0.1:5000";
 let isDownloading = false;
 
@@ -31,7 +27,7 @@ let isDownloading = false;
 let currentState = null;
 let currentTab = null;
 let updateInterval = null;
-
+let isCapturingFullPage = false;
 
 function normalizeDomain(input) {
   const raw = (input || "").trim().toLowerCase();
@@ -268,6 +264,51 @@ async function startVideoDownload() {
   }
 }
 
+async function startFullPageCapture() {
+  if (!captureFullPageBtn || !captureStatus) return;
+  if (isCapturingFullPage) return;
+
+  try {
+    if (!currentTab || !/^https?:\/\//.test(currentTab.url || "")) {
+      captureStatus.textContent = "Trang hiện tại không hỗ trợ chụp.";
+      captureStatus.classList.remove("is-success");
+      captureStatus.classList.add("is-error");
+      return;
+    }
+
+    isCapturingFullPage = true;
+    captureFullPageBtn.disabled = true;
+    captureStatus.textContent = "Đang cuộn và chụp từng phần...";
+    captureStatus.classList.remove("is-success", "is-error");
+
+    const result = await chrome.runtime.sendMessage({
+      type: "CAPTURE_FULL_PAGE",
+      tabId: currentTab.id,
+    });
+
+    if (!result?.success) {
+      throw new Error(result?.error || "CAPTURE_FAILED");
+    }
+
+    if (result.stoppedByUser) {
+      captureStatus.textContent = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    } else if (result.reachedEnd) {
+      captureStatus.textContent = `Đã chụp hết trang (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    } else {
+      captureStatus.textContent = `Đã xuất ảnh: ${result.fileName || "fullpage.png"}`;
+    }
+    captureStatus.classList.remove("is-error");
+    captureStatus.classList.add("is-success");
+  } catch (error) {
+    captureStatus.textContent = `Lỗi chụp ảnh: ${error.message}`;
+    captureStatus.classList.remove("is-success");
+    captureStatus.classList.add("is-error");
+  } finally {
+    isCapturingFullPage = false;
+    captureFullPageBtn.disabled = false;
+  }
+}
+
 // =============================================
 // BƯỚC 4: XỬ LÝ TOGGLE BẬT/TẮT
 // =============================================
@@ -496,174 +537,16 @@ if (videoUrlInput) {
     if (e.key === "Enter") {
       startVideoDownload();
     }
-// =============================================
-// BƯỚC 9: XỬ LÝ TẢI VIDEO
-// =============================================
+  });
 
-
-if (downloadBtn && videoUrlInput) {
-    const startVideoDownload = () => {
-        const url = videoUrlInput.value.trim();
-        if (!url) {
-            downloadStatus.textContent = "Vui lòng nhập link video!";
-            downloadStatus.style.color = "#e74c3c";
-            return;
-        }
-
-        downloadStatus.textContent = "Đang xử lý...";
-        downloadStatus.style.color = "#f39c12";
-
-        // Gửi thông điệp lên background để xử lý tải video
-        chrome.runtime.sendMessage(
-            { type: "DOWNLOAD_VIDEO", url: url },
-            (response) => {
-                if (chrome.runtime.lastError) {
-                    downloadStatus.textContent = "Lỗi kết nối background.";
-                    downloadStatus.style.color = "#e74c3c";
-                } else if (response && response.success) {
-                    downloadStatus.textContent = "Đã bắt đầu tải!";
-                    downloadStatus.style.color = "#2ecc71";
-                    videoUrlInput.value = ""; // Xóa trắng ô input
-                } else {
-                    downloadStatus.textContent = response?.error || "Lỗi tải video.";
-                    downloadStatus.style.color = "#e74c3c";
-                }
-            }
-        );
-    };
-
-    downloadBtn.addEventListener("click", startVideoDownload);
-
-    videoUrlInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            startVideoDownload();
-        }
-    });
-
-    videoUrlInput.addEventListener("paste", () => {
-        // Đợi input nhận giá trị mới từ clipboard rồi tự động tải.
-        setTimeout(() => {
-            startVideoDownload();
-        }, 0);
-    });
+  videoUrlInput.addEventListener("paste", () => {
+    // Đợi input nhận giá trị mới từ clipboard rồi tự động tải.
+    setTimeout(() => {
+      startVideoDownload();
+    }, 0);
+  });
 }
 
-// =============================================
-// BƯỚC 10: XỬ LÝ COOKIES (EXPORT / IMPORT)
-// =============================================
-// --- TÍNH NĂNG 1: EXPORT (XUẤT) COOKIES ---
-if (btnExport) {
-    btnExport.addEventListener('click', async () => {
-        try {
-            if (!currentTab || !currentTab.url) {
-                alert("Không thể đọc được trang web này!");
-                return;
-            }
-
-            // Lấy tên miền chuẩn
-            let url = new URL(currentTab.url);
-            let domain = url.hostname.replace('www.', ''); 
-
-            // Hút toàn bộ Cookie của tên miền
-            let cookies = await chrome.cookies.getAll({ domain: domain });
-
-            if (cookies.length === 0) {
-                alert("Trang web này chưa có Cookie nào (Bạn đã đăng nhập chưa?)");
-                return;
-            }
-
-            // Đóng gói thành file JSON và tải về
-            let jsonString = JSON.stringify(cookies, null, 2);
-            let blob = new Blob([jsonString], { type: "application/json" });
-            let downloadUrl = URL.createObjectURL(blob);
-
-            let a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = `J2Clone_Cookies_${domain}.json`; 
-            a.click();
-
-            URL.revokeObjectURL(downloadUrl);
-            
-        } catch (error) {
-            console.error("Lỗi khi xuất Cookie: ", error);
-            alert("Có lỗi xảy ra, vui lòng mở Console để xem chi tiết!");
-        }
-    });
-}
-
-// --- TÍNH NĂNG 2: IMPORT (NHẬP) COOKIES ---
-if (btnImport && fileImport) {
-    // 1. Khi bấm nút Import, thực chất là đi bấm "ké" cái thẻ input file đang bị ẩn
-    btnImport.addEventListener('click', () => {
-        fileImport.click();
-    });
-
-    // 2. Khi người dùng đã chọn file xong
-    fileImport.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        
-        // 3. Hàm này chạy khi máy tính đọc file xong
-        reader.onload = async (e) => {
-            try {
-                // Biến văn bản thành mảng JavaScript
-                const cookies = JSON.parse(e.target.result);
-                
-                if (!Array.isArray(cookies)) {
-                    alert("File không đúng định dạng Cookie!");
-                    return;
-                }
-
-                let successCount = 0;
-
-                // Vòng lặp nhét từng Cookie vào trình duyệt
-                for (const cookie of cookies) {
-                    // API của Chrome yêu cầu phải tạo URL từ domain để nạp
-                    let domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
-                    let url = (cookie.secure ? "https://" : "http://") + domain + cookie.path;
-
-                    // Phải loại bỏ một số thuộc tính rác thì Chrome mới chịu nhận
-                    let newCookie = {
-                        url: url,
-                        name: cookie.name,
-                        value: cookie.value,
-                        domain: cookie.domain,
-                        path: cookie.path,
-                        secure: cookie.secure,
-                        httpOnly: cookie.httpOnly,
-                        sameSite: cookie.sameSite,
-                        storeId: cookie.storeId
-                    };
-
-                    // Nếu cookie có hạn sử dụng thì giữ nguyên
-                    if (!cookie.session && cookie.expirationDate) {
-                        newCookie.expirationDate = cookie.expirationDate;
-                    }
-
-                    // Bơm vào trình duyệt
-                    await chrome.cookies.set(newCookie);
-                    successCount++;
-                }
-
-                alert(`✅ Đã nạp thành công ${successCount} mã Cookies! Trang sẽ tự tải lại để áp dụng.`);
-                
-                // Nạp xong thì Reload lại trang để tài khoản đăng nhập thành công
-                if (currentTab && currentTab.id) {
-                    chrome.tabs.reload(currentTab.id);
-                }
-
-            } catch (error) {
-                console.error("Lỗi khi nạp Cookie:", error);
-                alert("❌ File bị lỗi hoặc không thể nạp Cookie! Xem Console để biết chi tiết.");
-            }
-            
-            // Dọn dẹp thẻ input để lần sau chọn lại đúng file đó không bị kẹt
-            fileImport.value = '';
-        };
-        
-        // Bắt đầu đọc file JSON
-        reader.readAsText(file);
-    });
+if (captureFullPageBtn) {
+  captureFullPageBtn.addEventListener("click", startFullPageCapture);
 }
