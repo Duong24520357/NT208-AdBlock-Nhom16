@@ -573,6 +573,10 @@ input:checked + .slider::before {
   animation: pulse 2s infinite; /* Chạy liên tục */
 }
 
+::-webkit-scrollbar {
+  display: none;
+}
+
 /* =============================================
    FOOTER
    ============================================= */

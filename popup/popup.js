@@ -496,59 +496,7 @@ if (videoUrlInput) {
     if (e.key === "Enter") {
       startVideoDownload();
     }
-
-  })
-}
-// =============================================
-// BƯỚC 9: XỬ LÝ TẢI VIDEO
-// =============================================
-
-
-if (downloadBtn && videoUrlInput) {
-    const startVideoDownload = () => {
-        const url = videoUrlInput.value.trim();
-        if (!url) {
-            downloadStatus.textContent = "Vui lòng nhập link video!";
-            downloadStatus.style.color = "#e74c3c";
-            return;
-        }
-
-        downloadStatus.textContent = "Đang xử lý...";
-        downloadStatus.style.color = "#f39c12";
-
-        // Gửi thông điệp lên background để xử lý tải video
-        chrome.runtime.sendMessage(
-            { type: "DOWNLOAD_VIDEO", url: url },
-            (response) => {
-                if (chrome.runtime.lastError) {
-                    downloadStatus.textContent = "Lỗi kết nối background.";
-                    downloadStatus.style.color = "#e74c3c";
-                } else if (response && response.success) {
-                    downloadStatus.textContent = "Đã bắt đầu tải!";
-                    downloadStatus.style.color = "#2ecc71";
-                    videoUrlInput.value = ""; // Xóa trắng ô input
-                } else {
-                    downloadStatus.textContent = response?.error || "Lỗi tải video.";
-                    downloadStatus.style.color = "#e74c3c";
-                }
-            }
-        );
-    };
-
-    downloadBtn.addEventListener("click", startVideoDownload);
-
-    videoUrlInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            startVideoDownload();
-        }
-    });
-
-    videoUrlInput.addEventListener("paste", () => {
-        // Đợi input nhận giá trị mới từ clipboard rồi tự động tải.
-        setTimeout(() => {
-            startVideoDownload();
-        }, 0);
-    });
+  });
 }
 
 // =============================================
