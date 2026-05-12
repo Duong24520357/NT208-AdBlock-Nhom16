@@ -497,7 +497,18 @@ if (videoUrlInput) {
       startVideoDownload();
     }
   });
+
+  videoUrlInput.addEventListener("paste", () => {
+    // Đợi input nhận giá trị mới từ clipboard rồi tự động tải.
+    setTimeout(() => {
+      startVideoDownload();
+    }, 0);
+  });
 }
+
+// =============================================
+// BƯỚC 9: XỬ LÝ TẢI VIDEO
+// =============================================
 
 // =============================================
 // BƯỚC 10: XỬ LÝ COOKIES (EXPORT / IMPORT)
