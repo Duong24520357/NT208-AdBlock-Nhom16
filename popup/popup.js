@@ -547,6 +547,49 @@ if (videoUrlInput) {
   });
 }
 
-if (captureFullPageBtn) {
-  captureFullPageBtn.addEventListener("click", startFullPageCapture);
+// =============================================
+// BƯỚC 9: XỬ LÝ TẢI VIDEO
+// =============================================
+
+// =============================================
+// BƯỚC 10: XỬ LÝ COOKIES (EXPORT / IMPORT)
+// =============================================
+// --- TÍNH NĂNG 1: EXPORT (XUẤT) COOKIES ---
+if (btnExport) {
+    btnExport.addEventListener('click', async () => {
+        try {
+            if (!currentTab || !currentTab.url) {
+                alert("Không thể đọc được trang web này!");
+                return;
+            }
+
+            // Lấy tên miền chuẩn
+            let url = new URL(currentTab.url);
+            let domain = url.hostname.replace('www.', ''); 
+
+            // Hút toàn bộ Cookie của tên miền
+            let cookies = await chrome.cookies.getAll({ domain: domain });
+
+            if (cookies.length === 0) {
+                alert("Trang web này chưa có Cookie nào (Bạn đã đăng nhập chưa?)");
+                return;
+            }
+
+            // Đóng gói thành file JSON và tải về
+            let jsonString = JSON.stringify(cookies, null, 2);
+            let blob = new Blob([jsonString], { type: "application/json" });
+            let downloadUrl = URL.createObjectURL(blob);
+
+            let a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `J2Clone_Cookies_${domain}.json`; 
+            a.click();
+
+            URL.revokeObjectURL(downloadUrl);
+            
+        } catch (error) {
+            console.error("Lỗi khi xuất Cookie: ", error);
+            alert("Có lỗi xảy ra, vui lòng mở Console để xem chi tiết!");
+        }
+    });
 }
