@@ -14,6 +14,12 @@ const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
 const blocklistHint = document.getElementById("blocklist-hint");
+
+// --- DOM Elements cho phần Cookies ---
+const btnExport = document.getElementById("btnExport");
+const btnImport = document.getElementById("btnImport");
+const fileImport = document.getElementById("fileImport");
+
 const videoUrlInput = document.getElementById("video-url-input");
 const downloadBtn = document.getElementById("download-btn");
 const downloadStatus = document.getElementById("download-status");
@@ -433,6 +439,84 @@ document.addEventListener("DOMContentLoaded", async () => {
   await checkBackendStatus();
 });
 
+
+// --- TÍNH NĂNG 2: IMPORT (NHẬP) COOKIES ---
+if (btnImport && fileImport) {
+    // 1. Khi bấm nút Import, thực chất là đi bấm "ké" cái thẻ input file đang bị ẩn
+    btnImport.addEventListener('click', () => {
+        fileImport.click();
+    });
+
+    // 2. Khi người dùng đã chọn file xong
+    fileImport.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        
+        // 3. Hàm này chạy khi máy tính đọc file xong
+        reader.onload = async (e) => {
+            try {
+                // Biến văn bản thành mảng JavaScript
+                const cookies = JSON.parse(e.target.result);
+                
+                if (!Array.isArray(cookies)) {
+                    alert("File không đúng định dạng Cookie!");
+                    return;
+                }
+
+                let successCount = 0;
+
+                // Vòng lặp nhét từng Cookie vào trình duyệt
+                for (const cookie of cookies) {
+                    // API của Chrome yêu cầu phải tạo URL từ domain để nạp
+                    let domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
+                    let url = (cookie.secure ? "https://" : "http://") + domain + cookie.path;
+
+                    // Phải loại bỏ một số thuộc tính rác thì Chrome mới chịu nhận
+                    let newCookie = {
+                        url: url,
+                        name: cookie.name,
+                        value: cookie.value,
+                        domain: cookie.domain,
+                        path: cookie.path,
+                        secure: cookie.secure,
+                        httpOnly: cookie.httpOnly,
+                        sameSite: cookie.sameSite,
+                        storeId: cookie.storeId
+                    };
+
+                    // Nếu cookie có hạn sử dụng thì giữ nguyên
+                    if (!cookie.session && cookie.expirationDate) {
+                        newCookie.expirationDate = cookie.expirationDate;
+                    }
+
+                    // Bơm vào trình duyệt
+                    await chrome.cookies.set(newCookie);
+                    successCount++;
+                }
+
+                alert(`✅ Đã nạp thành công ${successCount} mã Cookies! Trang sẽ tự tải lại để áp dụng.`);
+                
+                // Nạp xong thì Reload lại trang để tài khoản đăng nhập thành công
+                if (currentTab && currentTab.id) {
+                    chrome.tabs.reload(currentTab.id);
+                }
+
+            } catch (error) {
+                console.error("Lỗi khi nạp Cookie:", error);
+                alert("❌ File bị lỗi hoặc không thể nạp Cookie! Xem Console để biết chi tiết.");
+            }
+            
+            // Dọn dẹp thẻ input để lần sau chọn lại đúng file đó không bị kẹt
+            fileImport.value = '';
+        };
+        
+        // Bắt đầu đọc file JSON
+        reader.readAsText(file);
+    });
+}
+
 // =============================================
 // BƯỚC 5B: XỬ LÝ BLOCKLIST (HỌC TẬP)
 // =============================================
@@ -530,6 +614,10 @@ blockedDomainsEl.addEventListener("click", async (e) => {
 
 if (downloadBtn) {
   downloadBtn.addEventListener("click", startVideoDownload);
+}
+
+if (captureFullPageBtn) {
+  captureFullPageBtn.addEventListener("click", startFullPageCapture);
 }
 
 if (videoUrlInput) {

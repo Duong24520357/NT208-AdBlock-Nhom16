@@ -23,7 +23,7 @@
     "content_scripts": [
         {
             "matches": ["<all_urls>"],
-            "js": ["blocking/ad-constants.js","blocking/ad-heuristics.js","blocking/cosmetic-engine.js","blocking/study-blocker.js","blocking/study-ui.js","blocking/element-picker.js","blocking/dom-observer.js", "content.js"],
+            "js": ["blocking/ad-constants.js","blocking/ad-heuristics.js","blocking/cosmetic-engine.js","blocking/study-blocker.js","blocking/study-ui.js","blocking/element-picker.js","blocking/dom-observer.js","blocking/fullpage-capture.js", "content.js"],
             "all_frames": true,
             "run_at": "document_start"
         }
