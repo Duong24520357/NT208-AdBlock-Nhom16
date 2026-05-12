@@ -14,16 +14,12 @@ const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
 const blocklistHint = document.getElementById("blocklist-hint");
-
-// --- DOM Elements cho phần Cookies ---
-const btnExport = document.getElementById("btnExport");
-const btnImport = document.getElementById("btnImport");
-const fileImport = document.getElementById("fileImport");
-
-// --- DOM Elements & Biến cho phần Tải Video ---
 const videoUrlInput = document.getElementById("video-url-input");
 const downloadBtn = document.getElementById("download-btn");
 const downloadStatus = document.getElementById("download-status");
+const captureFullPageBtn = document.getElementById("capture-fullpage-btn");
+const captureStatus = document.getElementById("capture-status");
+
 const BACKEND_BASE_URL = "http://127.0.0.1:5000";
 let isDownloading = false;
 
@@ -31,7 +27,7 @@ let isDownloading = false;
 let currentState = null;
 let currentTab = null;
 let updateInterval = null;
-
+let isCapturingFullPage = false;
 
 function normalizeDomain(input) {
   const raw = (input || "").trim().toLowerCase();
@@ -265,6 +261,51 @@ async function startVideoDownload() {
   } finally {
     isDownloading = false;
     downloadBtn.disabled = false;
+  }
+}
+
+async function startFullPageCapture() {
+  if (!captureFullPageBtn || !captureStatus) return;
+  if (isCapturingFullPage) return;
+
+  try {
+    if (!currentTab || !/^https?:\/\//.test(currentTab.url || "")) {
+      captureStatus.textContent = "Trang hiện tại không hỗ trợ chụp.";
+      captureStatus.classList.remove("is-success");
+      captureStatus.classList.add("is-error");
+      return;
+    }
+
+    isCapturingFullPage = true;
+    captureFullPageBtn.disabled = true;
+    captureStatus.textContent = "Đang cuộn và chụp từng phần...";
+    captureStatus.classList.remove("is-success", "is-error");
+
+    const result = await chrome.runtime.sendMessage({
+      type: "CAPTURE_FULL_PAGE",
+      tabId: currentTab.id,
+    });
+
+    if (!result?.success) {
+      throw new Error(result?.error || "CAPTURE_FAILED");
+    }
+
+    if (result.stoppedByUser) {
+      captureStatus.textContent = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    } else if (result.reachedEnd) {
+      captureStatus.textContent = `Đã chụp hết trang (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    } else {
+      captureStatus.textContent = `Đã xuất ảnh: ${result.fileName || "fullpage.png"}`;
+    }
+    captureStatus.classList.remove("is-error");
+    captureStatus.classList.add("is-success");
+  } catch (error) {
+    captureStatus.textContent = `Lỗi chụp ảnh: ${error.message}`;
+    captureStatus.classList.remove("is-success");
+    captureStatus.classList.add("is-error");
+  } finally {
+    isCapturingFullPage = false;
+    captureFullPageBtn.disabled = false;
   }
 }
 
@@ -550,82 +591,5 @@ if (btnExport) {
             console.error("Lỗi khi xuất Cookie: ", error);
             alert("Có lỗi xảy ra, vui lòng mở Console để xem chi tiết!");
         }
-    });
-}
-
-// --- TÍNH NĂNG 2: IMPORT (NHẬP) COOKIES ---
-if (btnImport && fileImport) {
-    // 1. Khi bấm nút Import, thực chất là đi bấm "ké" cái thẻ input file đang bị ẩn
-    btnImport.addEventListener('click', () => {
-        fileImport.click();
-    });
-
-    // 2. Khi người dùng đã chọn file xong
-    fileImport.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        
-        // 3. Hàm này chạy khi máy tính đọc file xong
-        reader.onload = async (e) => {
-            try {
-                // Biến văn bản thành mảng JavaScript
-                const cookies = JSON.parse(e.target.result);
-                
-                if (!Array.isArray(cookies)) {
-                    alert("File không đúng định dạng Cookie!");
-                    return;
-                }
-
-                let successCount = 0;
-
-                // Vòng lặp nhét từng Cookie vào trình duyệt
-                for (const cookie of cookies) {
-                    // API của Chrome yêu cầu phải tạo URL từ domain để nạp
-                    let domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
-                    let url = (cookie.secure ? "https://" : "http://") + domain + cookie.path;
-
-                    // Phải loại bỏ một số thuộc tính rác thì Chrome mới chịu nhận
-                    let newCookie = {
-                        url: url,
-                        name: cookie.name,
-                        value: cookie.value,
-                        domain: cookie.domain,
-                        path: cookie.path,
-                        secure: cookie.secure,
-                        httpOnly: cookie.httpOnly,
-                        sameSite: cookie.sameSite,
-                        storeId: cookie.storeId
-                    };
-
-                    // Nếu cookie có hạn sử dụng thì giữ nguyên
-                    if (!cookie.session && cookie.expirationDate) {
-                        newCookie.expirationDate = cookie.expirationDate;
-                    }
-
-                    // Bơm vào trình duyệt
-                    await chrome.cookies.set(newCookie);
-                    successCount++;
-                }
-
-                alert(`✅ Đã nạp thành công ${successCount} mã Cookies! Trang sẽ tự tải lại để áp dụng.`);
-                
-                // Nạp xong thì Reload lại trang để tài khoản đăng nhập thành công
-                if (currentTab && currentTab.id) {
-                    chrome.tabs.reload(currentTab.id);
-                }
-
-            } catch (error) {
-                console.error("Lỗi khi nạp Cookie:", error);
-                alert("❌ File bị lỗi hoặc không thể nạp Cookie! Xem Console để biết chi tiết.");
-            }
-            
-            // Dọn dẹp thẻ input để lần sau chọn lại đúng file đó không bị kẹt
-            fileImport.value = '';
-        };
-        
-        // Bắt đầu đọc file JSON
-        reader.readAsText(file);
     });
 }

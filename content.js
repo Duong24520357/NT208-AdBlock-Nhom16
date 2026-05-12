@@ -4,26 +4,26 @@ const CosmeticEngine = window.CosmeticEngine || {};
 
 // Hàm khởi tạo
 async function initialize() {
-    try {
-        // Gửi message lên background.js
-        const response = await chrome.runtime.sendMessage({
-            type: "GET_STATE"
-        });
+  try {
+    // Gửi message lên background.js
+    const response = await chrome.runtime.sendMessage({
+      type: "GET_STATE",
+    });
 
-        // Kiểm tra response có hợp lệ không
-        if (!response) {
-            console.log("[AdBlock] Không nhận được response từ background");
-            return;
-        }
+    // Kiểm tra response có hợp lệ không
+    if (!response) {
+      console.log("[AdBlock] Không nhận được response từ background");
+      return;
+    }
 
-        // Lưu trạng thái vào biến cục bộ
-        const { enabled, whitelisted, studyBlocked, hostname } = response;
+    // Lưu trạng thái vào biến cục bộ
+    const { enabled, whitelisted, studyBlocked, hostname } = response;
 
-        // Nếu extension tắt → dừng toàn bộ
-        if (!enabled) {
-            console.log("[AdBlock] Không hoạt động (tắt)");
-            return;
-        }
+    // Nếu extension tắt → dừng toàn bộ
+    if (!enabled) {
+      console.log("[AdBlock] Không hoạt động (tắt)");
+      return;
+    }
 
         // Chặn domain theo danh sách học tập (chỉ top-frame)
         if (studyBlocked && window.StudyBlocker?.isTopFrame?.()) {
@@ -32,11 +32,11 @@ async function initialize() {
             return;
         }
 
-        // Domain trong whitelist → dừng chặn quảng cáo
-        if (whitelisted) {
-            console.log("[AdBlock] Không hoạt động trên trang này (whitelist)");
-            return;
-        }
+    // Domain trong whitelist → dừng chặn quảng cáo
+    if (whitelisted) {
+      console.log("[AdBlock] Không hoạt động trên trang này (whitelist)");
+      return;
+    }
 
         const startAdBlock = () => {
             injectAdBlockCSS();
@@ -51,10 +51,17 @@ async function initialize() {
             startAdBlock();
         }
 
-    } catch (error) {
-        // Extension có thể bị reload → bắt lỗi để tránh crash trang
-        console.error("[AdBlock] Lỗi khởi tạo:", error);
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startAdBlock, {
+        once: true,
+      });
+    } else {
+      startAdBlock();
     }
+  } catch (error) {
+    // Extension có thể bị reload → bắt lỗi để tránh crash trang
+    console.error("[AdBlock] Lỗi khởi tạo:", error);
+  }
 }
 
 // Study UI moved to blocking/study-ui.js
@@ -74,6 +81,9 @@ async function initialize() {
     } catch {
         // ignore
     }
+  } catch {
+    // ignore
+  }
 })();
 
 // Gọi hàm initialize ngay khi content script chạy
@@ -104,10 +114,10 @@ function hideVideoLikeAds() {
 
 // CSS injection: ẩn quảng cáo in-player (YouTube, generic video player)
 function injectAdBlockCSS() {
-    if (document.getElementById("adblock-css-injected")) return;
-    const style = document.createElement("style");
-    style.id = "adblock-css-injected";
-    style.textContent = `
+  if (document.getElementById("adblock-css-injected")) return;
+  const style = document.createElement("style");
+  style.id = "adblock-css-injected";
+  style.textContent = `
         /* Hide YouTube UI ads outside player */
         ytd-display-ad-renderer,
         ytd-promoted-video-renderer,
@@ -158,7 +168,7 @@ function injectAdBlockCSS() {
         [class*='instreamads'],
         [id*='instreamads'] { display: none !important; }
     `;
-    document.head.appendChild(style);
+  document.head.appendChild(style);
 }
 
 // Cosmetic engine moved to blocking/cosmetic-engine.js
@@ -192,6 +202,105 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         default:
             sendResponse({ error: "Unknown message type" });
     }
+  };
+
+  switch (message.type) {
+    case "APPLY_COSMETIC_FILTERS":
+      if (message.enabled) {
+        // Bật AdBlock → ẩn ads + bật observer
+        hideAds();
+        startObserver();
+        console.log("[AdBlock] Đã bật cosmetic filtering");
+      } else {
+        // Tắt AdBlock → hiện lại ads + tắt observer
+        stopObserver();
+        showAds();
+        console.log("[AdBlock] Đã tắt cosmetic filtering");
+      }
+      sendResponse({ success: true });
+      break;
+
+    case "ENTER_ELEMENT_PICKER":
+      startElementPicker();
+      sendResponse({ success: true });
+      return false;
+
+    case "FULLPAGE_GET_METRICS":
+      {
+        if (!isTopFrame()) {
+          sendResponse({ ok: false, reason: "NOT_TOP_FRAME" });
+          return false;
+        }
+
+        const doc = document.documentElement;
+        const body = document.body;
+        const totalHeight = Math.max(
+          doc?.scrollHeight || 0,
+          body?.scrollHeight || 0,
+          doc?.offsetHeight || 0,
+          body?.offsetHeight || 0,
+          doc?.clientHeight || 0,
+        );
+
+        sendResponse({
+          ok: true,
+          totalHeight,
+          viewportHeight: window.innerHeight,
+          viewportWidth: window.innerWidth,
+          originalScrollY: window.scrollY,
+          hostname: window.location.hostname,
+        });
+      }
+      return false;
+
+    case "FULLPAGE_SCROLL_TO":
+      runAsync(async () => {
+        if (!isTopFrame()) {
+          return { ok: false, reason: "NOT_TOP_FRAME" };
+        }
+
+        const targetY = Math.max(0, Math.floor(message.y || 0));
+        window.scrollTo({ top: targetY, left: 0, behavior: "auto" });
+        await waitForScrollSettled(targetY);
+        return { ok: true, y: window.scrollY };
+      });
+      return true;
+
+    case "FULLPAGE_STITCH_INIT":
+      runAsync(() => initFullPageStitch(message));
+      return true;
+
+    case "FULLPAGE_STITCH_ADD":
+      runAsync(() => addFullPageStitchSegment(message));
+      return true;
+
+    case "FULLPAGE_STITCH_FINALIZE":
+      runAsync(() => finalizeFullPageStitch());
+      return true;
+
+    case "FULLPAGE_CONFIRM_NEXT":
+      {
+        if (!isTopFrame()) {
+          sendResponse({ ok: false, reason: "NOT_TOP_FRAME" });
+          return false;
+        }
+
+        const frameNo = Math.max(1, Math.floor(message.currentFrame || 1));
+        const continueCapture = window.confirm(
+          `Đã chụp xong khung ${frameNo}. Bấm OK để chụp tiếp, hoặc Cancel để dừng và lưu ảnh hiện tại.`,
+        );
+        sendResponse({ ok: true, continueCapture });
+      }
+      return false;
+
+    case "FULLPAGE_STITCH_ABORT":
+      sendResponse(abortFullPageStitch());
+      return false;
+
+    default:
+      sendResponse({ error: "Unknown message type" });
+      return false;
+  }
 });
 
 // Element picker moved to blocking/element-picker.js (window.ElementPicker)

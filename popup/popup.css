@@ -212,6 +212,18 @@ body {
   color: #fb7185;
 }
 
+.capture-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 12px 0;
+}
+
+.capture-btn {
+  width: 100%;
+  height: 34px;
+  margin-top: 2px;
+}
+
 .toggle-info {
   display: flex;
   flex-direction: column;
