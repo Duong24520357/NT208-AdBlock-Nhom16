@@ -81,10 +81,8 @@ async function initialize() {
     } catch {
         // ignore
     }
-  } catch {
-    // ignore
   }
-})();
+);
 
 // Gọi hàm initialize ngay khi content script chạy
 initialize();
@@ -202,7 +200,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         default:
             sendResponse({ error: "Unknown message type" });
     }
-  };
+  });
 
   switch (message.type) {
     case "APPLY_COSMETIC_FILTERS":
@@ -301,7 +299,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ error: "Unknown message type" });
       return false;
   }
-});
 
 // Element picker moved to blocking/element-picker.js (window.ElementPicker)
 
