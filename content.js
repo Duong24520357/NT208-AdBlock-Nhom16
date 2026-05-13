@@ -252,13 +252,41 @@ async function fullPageCaptureSimov(options = {}) {
             await delayMs(delay);
         }
 
-        while (true) {
-            // ask background to capture visible viewport
-            const res = await new Promise((resMsg) => {
-                chrome.runtime.sendMessage({ type: 'CAPTURE_VIEWPORT' }, resMsg);
-            });
+        // Helper to retry capture if background is not responding
+        async function captureViewportWithRetry(maxAttempts = 3) {
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                try {
+                    const res = await new Promise((resMsg, rejMsg) => {
+                        const timeout = setTimeout(() => {
+                            rejMsg(new Error('CAPTURE_TIMEOUT'));
+                        }, 5000);
 
-            if (!res?.ok) throw new Error(res?.reason || 'CAPTURE_FAILED');
+                        chrome.runtime.sendMessage({ type: 'CAPTURE_VIEWPORT' }, (response) => {
+                            clearTimeout(timeout);
+                            if (chrome.runtime.lastError) {
+                                rejMsg(new Error(chrome.runtime.lastError.message));
+                            } else {
+                                resMsg(response);
+                            }
+                        });
+                    });
+
+                    if (res?.ok) return res;
+                    throw new Error(res?.reason || 'CAPTURE_FAILED');
+                } catch (err) {
+                    console.warn(`[Fullpage Capture] Attempt ${attempt + 1}/${maxAttempts} failed:`, err.message);
+                    if (attempt < maxAttempts - 1) {
+                        await delayMs(500);
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+        }
+
+        while (true) {
+            // ask background to capture visible viewport with retry
+            const res = await captureViewportWithRetry();
             const dataUrl = res.dataUrl;
             const currentOffset = Math.max(0, Math.floor(container.scrollTop || 0));
             // compute actual height for last segment
