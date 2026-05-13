@@ -246,6 +246,12 @@ async function fullPageCaptureSimov(options = {}) {
         let count = 0;
         let userStopped = false;
 
+        // Pre-scroll on first iteration to avoid capturing empty/top frame
+        if (maxScroll > 0) {
+            container.scrollTop = Math.min(viewportHeight, maxScroll);
+            await delayMs(delay);
+        }
+
         while (true) {
             // ask background to capture visible viewport
             const res = await new Promise((resMsg) => {
@@ -263,6 +269,11 @@ async function fullPageCaptureSimov(options = {}) {
 
             images.push({ image: dataUrl, offset: currentOffset, height });
 
+            // Check if reached end before asking
+            if (currentOffset >= maxScroll) {
+                break;
+            }
+
             // Ask user if they want to continue capturing
             const continueCapture = window.confirm(
                 `Đã chụp xong khung ${images.length}. Bấm OK để chụp tiếp, hoặc Cancel để dừng và lưu ảnh hiện tại.`
@@ -273,12 +284,8 @@ async function fullPageCaptureSimov(options = {}) {
                 break;
             }
 
-            if (currentOffset >= maxScroll) {
-                break;
-            }
-
             count += 1;
-            container.scrollTop = Math.min(count * viewportHeight, maxScroll);
+            container.scrollTop = Math.min(currentOffset + viewportHeight, maxScroll);
             await delayMs(delay);
 
             // guard: if scroll didn't advance after waiting, assume end
@@ -288,6 +295,8 @@ async function fullPageCaptureSimov(options = {}) {
         if (images.length === 0) {
             throw new Error('NO_FRAMES_CAPTURED');
         }
+
+        console.log(`[Fullpage Capture] Stitching ${images.length} frames...`);
 
         // Stitch images into single canvas
         const totalHeight = images.reduce((acc, it) => acc + it.height, 0);
@@ -306,7 +315,14 @@ async function fullPageCaptureSimov(options = {}) {
         }
 
         const blob = await new Promise((resolve, reject) => {
-            canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BLOB_FAILED'))), 'image/png');
+            canvas.toBlob((b) => {
+                if (b) {
+                    console.log(`[Fullpage Capture] Blob created: ${b.size} bytes`);
+                    resolve(b);
+                } else {
+                    reject(new Error('BLOB_FAILED'));
+                }
+            }, 'image/png');
         });
 
         const objectUrl = URL.createObjectURL(blob);
@@ -316,11 +332,19 @@ async function fullPageCaptureSimov(options = {}) {
         anchor.download = `screenshot-${(window.location.hostname || 'page')}-${stamp}.png`;
         anchor.rel = 'noopener';
         document.body.appendChild(anchor);
+        
+        console.log(`[Fullpage Capture] Triggering download: ${anchor.download}`);
         anchor.click();
         anchor.remove();
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+            console.log('[Fullpage Capture] ObjectURL revoked');
+        }, 1000);
 
         return { ok: true, fileName: anchor.download, capturedFrames: images.length, userStopped };
+    } catch (error) {
+        console.error('[Fullpage Capture] Error:', error);
+        throw error;
     } finally {
         html.style.overflow = originalOverflowHtml;
         if (body) body.style.overflow = originalOverflowBody;
