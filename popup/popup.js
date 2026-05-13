@@ -287,22 +287,23 @@ async function startFullPageCapture() {
     captureStatus.textContent = "Đang cuộn và chụp từng phần...";
     captureStatus.classList.remove("is-success", "is-error");
 
-    const result = await chrome.runtime.sendMessage({
-      type: "CAPTURE_FULL_PAGE",
-      tabId: currentTab.id,
+    // Request content script to run simov-style fullpage capture
+    const result = await chrome.tabs.sendMessage(currentTab.id, {
+      type: "FULLPAGE_SIMOV_START",
+      delay: 140,
     });
 
-    if (!result?.success) {
+    if (!result?.ok) {
       throw new Error(result?.error || "CAPTURE_FAILED");
     }
 
-    if (result.stoppedByUser) {
-      captureStatus.textContent = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
-    } else if (result.reachedEnd) {
-      captureStatus.textContent = `Đã chụp hết trang (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
-    } else {
-      captureStatus.textContent = `Đã xuất ảnh: ${result.fileName || "fullpage.png"}`;
+    // Build message based on whether user stopped early or reached end
+    let message = `Đã xuất ảnh: ${result.fileName || "fullpage.png"} (${result.capturedFrames || 1} khung)`;
+    if (result.userStopped) {
+      message = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
     }
+    
+    captureStatus.textContent = message;
     captureStatus.classList.remove("is-error");
     captureStatus.classList.add("is-success");
   } catch (error) {

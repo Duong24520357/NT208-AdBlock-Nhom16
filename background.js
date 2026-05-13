@@ -176,20 +176,56 @@ async function captureFullPage(tabId) {
 
   originalScrollY = metrics.originalScrollY || 0;
 
+  // Prepare loop state variables here so catch/finally can inspect them
+  let viewportHeight = 0;
+  let nextY = 0;
+  let lastCapturedY = -1;
+  let capturedFrames = 0;
+  let stoppedByUser = false;
+  let reachedEnd = false;
+
   try {
-    const viewportHeight = Math.max(1, Math.ceil(metrics.viewportHeight || 0));
-    let nextY = originalScrollY;
-    let lastCapturedY = -1;
-    let capturedFrames = 0;
-    let stoppedByUser = false;
-    let reachedEnd = false;
+    viewportHeight = Math.max(1, Math.ceil(metrics.viewportHeight || 0));
+    nextY = originalScrollY;
 
     while (true) {
-      const scrollResult = await requestTabMessage(tabId, {
-        type: "FULLPAGE_SCROLL_TO",
-        y: nextY,
-      });
+      // Try multiple times to ask the page to scroll (some pages may intermittently
+      // fail to handle messages). If it keeps failing and we already have frames,
+      // finalize a partial capture; otherwise fail.
+      let scrollResult = null;
+      const maxScrollAttempts = 3;
+      for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+        scrollResult = await requestTabMessage(tabId, {
+          type: "FULLPAGE_SCROLL_TO",
+          y: nextY,
+        });
+        if (scrollResult?.ok) break;
+        await delay(200 + attempt * 150);
+      }
+
       if (!scrollResult?.ok) {
+        if (capturedFrames > 0) {
+          // Try to finalize what we have instead of outright failing
+          try {
+            const finalizeResult = await requestTabMessage(tabId, {
+              type: "FULLPAGE_STITCH_FINALIZE",
+            });
+            if (finalizeResult?.ok) {
+              return {
+                success: true,
+                fileName: finalizeResult.fileName,
+                capturedFrames,
+                stoppedByUser,
+                reachedEnd,
+                partial: true,
+                error: "SCROLL_FAILED",
+              };
+            }
+          } catch {
+            // ignore and fall through to throwing
+          }
+        }
+
         throw new Error("SCROLL_FAILED");
       }
 
@@ -281,6 +317,29 @@ async function captureFullPage(tabId) {
       reachedEnd,
     };
   } catch (error) {
+    // If we have captured at least one frame, try to finalize/stitch what we have
+    if (capturedFrames > 0) {
+      try {
+        const finalizeResult = await requestTabMessage(tabId, {
+          type: "FULLPAGE_STITCH_FINALIZE",
+        });
+        if (finalizeResult?.ok) {
+          return {
+            success: true,
+            fileName: finalizeResult.fileName,
+            capturedFrames,
+            stoppedByUser,
+            reachedEnd,
+            partial: true,
+            error: error?.message || String(error),
+          };
+        }
+      } catch (e) {
+        // ignore finalize errors and fallthrough to abort
+      }
+    }
+
+    // Nothing to finalize or finalize failed → abort and rethrow original error
     await requestTabMessage(tabId, {
       type: "FULLPAGE_STITCH_ABORT",
     });
@@ -476,6 +535,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
       }
       return true;
+
+    case "CAPTURE_VIEWPORT":
+      {
+        // Content script requests the background to capture the visible viewport
+        // We use sender.tab.windowId to call captureVisibleTabWithThrottle
+        const winId = sender.tab?.windowId;
+        if (typeof winId === "undefined") {
+          sendResponse({ ok: false, reason: "NO_WINDOW_ID" });
+          return false;
+        }
+
+        captureVisibleTabWithThrottle(winId)
+          .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
+          .catch((error) => sendResponse({ ok: false, reason: error?.message || String(error) }));
+
+        return true;
+      }
 
     // Content script báo cáo đã ẩn ads trong DOM
     case "REPORT_BLOCKED":

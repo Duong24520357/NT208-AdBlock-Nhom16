@@ -199,3 +199,140 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
+// --- Simov-style fullpage capture integrated ---
+function delayMs(ms) {
+    return new Promise((res) => setTimeout(res, ms));
+}
+
+function loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('IMAGE_LOAD_FAILED'));
+        img.src = dataUrl;
+    });
+}
+
+async function fullPageCaptureSimov(options = {}) {
+    const html = document.documentElement;
+    const body = document.body;
+    // choose container that supports scrollTop
+    const container = (() => {
+        try {
+            html.scrollTop = 1;
+            if (html.scrollTop === 1) {
+                html.scrollTop = 0;
+                return html;
+            }
+        } catch (e) {}
+        return body || html;
+    })();
+
+    const originalOverflowHtml = html.style.overflow;
+    const originalOverflowBody = body ? body.style.overflow : '';
+    const delay = options.delay || 140;
+
+    try {
+        // prevent layout shifts
+        html.style.overflow = 'hidden';
+        if (body) body.style.overflow = 'hidden';
+
+        const images = [];
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        const scale = Math.max(1, window.devicePixelRatio || 1);
+
+        let maxScroll = Math.max(0, (container.scrollHeight || document.documentElement.scrollHeight) - viewportHeight);
+        let count = 0;
+        let userStopped = false;
+
+        while (true) {
+            // ask background to capture visible viewport
+            const res = await new Promise((resMsg) => {
+                chrome.runtime.sendMessage({ type: 'CAPTURE_VIEWPORT' }, resMsg);
+            });
+
+            if (!res?.ok) throw new Error(res?.reason || 'CAPTURE_FAILED');
+            const dataUrl = res.dataUrl;
+            const currentOffset = Math.max(0, Math.floor(container.scrollTop || 0));
+            // compute actual height for last segment
+            let height = viewportHeight;
+            if (currentOffset + viewportHeight > (container.scrollHeight || document.documentElement.scrollHeight)) {
+                height = Math.max(0, (container.scrollHeight || document.documentElement.scrollHeight) - currentOffset);
+            }
+
+            images.push({ image: dataUrl, offset: currentOffset, height });
+
+            // Ask user if they want to continue capturing
+            const continueCapture = window.confirm(
+                `Đã chụp xong khung ${images.length}. Bấm OK để chụp tiếp, hoặc Cancel để dừng và lưu ảnh hiện tại.`
+            );
+
+            if (!continueCapture) {
+                userStopped = true;
+                break;
+            }
+
+            if (currentOffset >= maxScroll) {
+                break;
+            }
+
+            count += 1;
+            container.scrollTop = Math.min(count * viewportHeight, maxScroll);
+            await delayMs(delay);
+
+            // guard: if scroll didn't advance after waiting, assume end
+            if (container.scrollTop >= maxScroll) break;
+        }
+
+        if (images.length === 0) {
+            throw new Error('NO_FRAMES_CAPTURED');
+        }
+
+        // Stitch images into single canvas
+        const totalHeight = images.reduce((acc, it) => acc + it.height, 0);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(viewportWidth * scale));
+        canvas.height = Math.max(1, Math.round(totalHeight * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('CANVAS_FAILED');
+
+        for (const seg of images) {
+            const img = await loadImageFromDataUrl(seg.image);
+            const destY = Math.round(seg.offset * scale);
+            const destW = Math.round(viewportWidth * scale);
+            const destH = Math.round(seg.height * scale);
+            ctx.drawImage(img, 0, destY, destW, destH);
+        }
+
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('BLOB_FAILED'))), 'image/png');
+        });
+
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        anchor.download = `screenshot-${(window.location.hostname || 'page')}-${stamp}.png`;
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+        return { ok: true, fileName: anchor.download, capturedFrames: images.length, userStopped };
+    } finally {
+        html.style.overflow = originalOverflowHtml;
+        if (body) body.style.overflow = originalOverflowBody;
+    }
+}
+
+// Listen for simov-style start
+chrome.runtime.onMessage.addListener((req, sender, res) => {
+    if (req && req.type === 'FULLPAGE_SIMOV_START') {
+        fullPageCaptureSimov({ delay: req.delay }).then((result) => res(result)).catch((e) => res({ ok: false, error: e?.message || String(e) }));
+        return true;
+    }
+
+    return false;
+});

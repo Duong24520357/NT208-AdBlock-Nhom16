@@ -12,16 +12,30 @@
 
     function waitForScrollSettled(targetY, attempts = 8) {
         return new Promise((resolve) => {
-            let remainingAttempts = attempts;
+            let remainingAttempts = Math.max(8, attempts);
+
+            const readY = () => {
+                try {
+                    return (
+                        window.scrollY ||
+                        document.documentElement?.scrollTop ||
+                        document.body?.scrollTop ||
+                        0
+                    );
+                } catch {
+                    return 0;
+                }
+            };
 
             const tick = () => {
-                if (Math.abs(window.scrollY - targetY) <= 1 || remainingAttempts <= 0) {
+                const currentY = readY();
+                if (Math.abs(currentY - targetY) <= 2 || remainingAttempts <= 0) {
                     resolve();
                     return;
                 }
 
                 remainingAttempts -= 1;
-                setTimeout(tick, 60);
+                setTimeout(tick, 80);
             };
 
             tick();
@@ -75,7 +89,8 @@
             throw new Error("CANVAS_CONTEXT_FAILED");
         }
 
-        ctx.scale(state.scale, state.scale);
+        // Work in device-pixel coordinates; do not call ctx.scale().
+        // We'll draw images at their device-pixel sizes.
         state.canvas = canvas;
         state.ctx = ctx;
         return state;
@@ -121,7 +136,8 @@
             viewportHeight,
             viewportWidth,
             originalScrollY: Math.max(0, Math.floor(window.scrollY || 0)),
-            scale: Math.max(1, Math.round(window.devicePixelRatio || 1)),
+            // Use actual devicePixelRatio (may be fractional); apply scaling when drawing
+            scale: Math.max(1, window.devicePixelRatio || 1),
             canvas: null,
             ctx: null,
             fileName: buildFileName(message.hostname || window.location.hostname || "page"),
@@ -150,7 +166,11 @@
         fullPageCaptureState.drawQueue = fullPageCaptureState.drawQueue.then(async () => {
             const state = ensureCanvas(fullPageCaptureState);
             const image = await loadImage(dataUrl);
-            state.ctx.drawImage(image, 0, y, state.viewportWidth, state.viewportHeight);
+            // Draw using device-pixel coordinates: scale positions and sizes by devicePixelRatio
+            const destY = Math.round(y * state.scale);
+            const destW = Math.round(state.viewportWidth * state.scale);
+            const destH = Math.round(state.viewportHeight * state.scale);
+            state.ctx.drawImage(image, 0, destY, destW, destH);
             state.capturedFrames += 1;
             return { ok: true };
         });
@@ -214,8 +234,26 @@
             }
 
             const targetY = Math.max(0, Math.floor(message.y || 0));
-            window.scrollTo({ top: targetY, left: 0, behavior: "auto" });
-            await waitForScrollSettled(targetY);
+            // Try multiple ways to set scroll to be robust against pages that
+            // intercept window.scrollTo or use non-standard scrolling containers.
+            try {
+                window.scrollTo({ top: targetY, left: 0, behavior: "auto" });
+            } catch {
+                try {
+                    window.scrollTo(0, targetY);
+                } catch {
+                    // swallow
+                }
+            }
+
+            try {
+                if (document.documentElement) document.documentElement.scrollTop = targetY;
+            } catch {}
+            try {
+                if (document.body) document.body.scrollTop = targetY;
+            } catch {}
+
+            await waitForScrollSettled(targetY, 20);
             return { ok: true, y: window.scrollY };
         });
     }
