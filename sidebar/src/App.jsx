@@ -6,7 +6,7 @@ import SettingsPanel from "./components/SettingsPanel.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import { useChromeStorage } from "./hooks/useChromeStorage.js";
 import { useStreamingChat } from "./hooks/useStreamingChat.js";
-import { listModels } from "./services/openrouter.js";
+import { listModels, validateToken } from "./services/openrouter.js";
 import { STORAGE_KEYS } from "./utils/storageKeys.js";
 import { ACTION_TEMPLATES } from "./utils/strings.js";
 
@@ -57,11 +57,14 @@ function mapModels(models) {
     let vendor = null;
 
     if (lowered.includes("openai")) vendor = "OpenAI";
-    if (lowered.includes("anthropic") || lowered.includes("claude")) vendor = "Claude";
-    if (lowered.includes("gemini") || lowered.includes("google")) vendor = "Gemini";
+    if (lowered.includes("anthropic") || lowered.includes("claude"))
+      vendor = "Claude";
+    if (lowered.includes("gemini") || lowered.includes("google"))
+      vendor = "Gemini";
     if (lowered.includes("grok") || lowered.includes("x-ai")) vendor = "Grok";
     if (lowered.includes("deepseek")) vendor = "DeepSeek";
-    if (lowered.includes("llama") || lowered.includes("meta-llama")) vendor = "Llama";
+    if (lowered.includes("llama") || lowered.includes("meta-llama"))
+      vendor = "Llama";
 
     if (vendor) buckets.push({ id, vendor });
   });
@@ -91,38 +94,14 @@ export default function App() {
   const [conversations, setConversations] = useState({});
   const [streamingState, setStreamingState] = useState({});
   const [status, setStatus] = useState("");
+  const [tokenStatus, setTokenStatus] = useState({
+    state: "idle",
+    message: "",
+  });
 
   const lastPromptRef = useRef("");
   const conversationsRef = useRef({});
-  const streamTimeoutRef = useRef({});
   const { startStream, stopStream } = useStreamingChat();
-
-  const clearStreamTimeout = (modelId) => {
-    const timeoutId = streamTimeoutRef.current[modelId];
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      delete streamTimeoutRef.current[modelId];
-    }
-  };
-
-  const armStreamTimeout = (modelId, assistantMessage) => {
-    clearStreamTimeout(modelId);
-    streamTimeoutRef.current[modelId] = setTimeout(() => {
-      stopStream(modelId);
-      setStreamingState((prev) => ({ ...prev, [modelId]: false }));
-      setConversations((prev) => {
-        const historyNext = prev[modelId] || [];
-        const updated = historyNext.map((item) => {
-          if (item.id !== assistantMessage.id) return item;
-          return {
-            ...item,
-            content: `${item.content}\n\n[Error] Stream timed out.`,
-          };
-        });
-        return { ...prev, [modelId]: updated };
-      });
-    }, 20000);
-  };
 
   const activeModels = useMemo(() => {
     if (selectedModels.length) return selectedModels;
@@ -135,6 +114,7 @@ export default function App() {
   useEffect(() => {
     if (!apiKey) {
       setCatalog(FALLBACK_MODELS);
+      setTokenStatus({ state: "idle", message: "Not checked" });
       return;
     }
 
@@ -150,6 +130,12 @@ export default function App() {
         setCatalog(FALLBACK_MODELS);
       });
   }, [apiKey, selectedModels.length, setSelectedModels]);
+
+  useEffect(() => {
+    if (apiKey) {
+      setTokenStatus({ state: "idle", message: "Not checked" });
+    }
+  }, [apiKey]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -204,7 +190,11 @@ export default function App() {
 
     activeModels.forEach(async (modelId) => {
       const userMessage = { id: createId(), role: "user", content: trimmed };
-      const assistantMessage = { id: createId(), role: "assistant", content: "" };
+      const assistantMessage = {
+        id: createId(),
+        role: "assistant",
+        content: "",
+      };
 
       setConversations((prev) => {
         const history = prev[modelId] || [];
@@ -215,7 +205,6 @@ export default function App() {
       });
 
       setStreamingState((prev) => ({ ...prev, [modelId]: true }));
-      armStreamTimeout(modelId, assistantMessage);
 
       const history = conversationsRef.current[modelId] || [];
       const payloadMessages = [...history, userMessage].map((item) => ({
@@ -230,7 +219,6 @@ export default function App() {
         model: modelId,
         messages: payloadMessages,
         onDelta: (delta) => {
-          armStreamTimeout(modelId, assistantMessage);
           setConversations((prev) => {
             const historyNext = prev[modelId] || [];
             const updated = historyNext.map((item) => {
@@ -241,11 +229,9 @@ export default function App() {
           });
         },
         onDone: () => {
-          clearStreamTimeout(modelId);
           setStreamingState((prev) => ({ ...prev, [modelId]: false }));
         },
         onError: (error) => {
-          clearStreamTimeout(modelId);
           setStreamingState((prev) => ({ ...prev, [modelId]: false }));
           setConversations((prev) => {
             const historyNext = prev[modelId] || [];
@@ -272,16 +258,10 @@ export default function App() {
 
   const handleStop = () => {
     stopStream();
-    Object.keys(streamTimeoutRef.current).forEach((modelId) => {
-      clearStreamTimeout(modelId);
-    });
     setStreamingState({});
   };
 
   const handleClear = () => {
-    Object.keys(streamTimeoutRef.current).forEach((modelId) => {
-      clearStreamTimeout(modelId);
-    });
     setConversations({});
     setStatus("");
   };
@@ -293,6 +273,30 @@ export default function App() {
     if (!value) return;
     const next = [...templates, { id: createId(), label, value }];
     setTemplates(next);
+  };
+
+  const handleCheckToken = async () => {
+    const trimmed = (apiKey || "").trim();
+    if (!trimmed) {
+      setTokenStatus({ state: "invalid", message: "Missing API key" });
+      return;
+    }
+
+    setTokenStatus({ state: "checking", message: "Verifying..." });
+    try {
+      const modelToCheck = activeModels[0] || FALLBACK_MODELS[0].id;
+      await validateToken({ apiKey: trimmed, model: modelToCheck });
+      setTokenStatus({ state: "valid", message: "Token OK" });
+    } catch (error) {
+      const message =
+        error?.message === "TOKEN_INVALID"
+          ? "Token invalid or blocked"
+          : error?.message || "Token invalid";
+      setTokenStatus({
+        state: "invalid",
+        message,
+      });
+    }
   };
 
   const columns = activeModels.map((modelId) => {
@@ -329,6 +333,8 @@ export default function App() {
             onApiKeyChange={setApiKey}
             theme={theme}
             onTheme={setTheme}
+            onCheckToken={handleCheckToken}
+            tokenStatus={tokenStatus}
           />
           <ModelPicker
             models={catalog}
@@ -357,9 +363,7 @@ export default function App() {
           <div className="flex-1">
             <div
               className={
-                compareMode
-                  ? "grid h-full gap-3 md:grid-cols-2"
-                  : "grid h-full"
+                compareMode ? "grid h-full gap-3 md:grid-cols-2" : "grid h-full"
               }
               style={{
                 gridTemplateColumns: compareMode

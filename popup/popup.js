@@ -14,17 +14,64 @@ const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
 const blocklistHint = document.getElementById("blocklist-hint");
-
-// --- DOM Elements cho phần Cookies ---
-const btnExport = document.getElementById("btnExport");
-const btnImport = document.getElementById("btnImport");
-const fileImport = document.getElementById("fileImport");
-
 const videoUrlInput = document.getElementById("video-url-input");
 const downloadBtn = document.getElementById("download-btn");
 const downloadStatus = document.getElementById("download-status");
 const captureFullPageBtn = document.getElementById("capture-fullpage-btn");
 const captureStatus = document.getElementById("capture-status");
+const aiSidebarBtn = document.getElementById("ai-sidebar-btn");
+
+function sendTabMessage(tabId, message) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message || "SEND_MESSAGE_FAILED"));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+function createTab(url) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.create({ url }, (tab) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message || "CREATE_TAB_FAILED"));
+        return;
+      }
+      resolve(tab);
+    });
+  });
+}
+
+function queryTabs(queryInfo) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query(queryInfo, (tabs) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message || "QUERY_TABS_FAILED"));
+        return;
+      }
+      resolve(tabs || []);
+    });
+  });
+}
+
+function sendRuntimeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message || "SEND_RUNTIME_MESSAGE_FAILED"));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
 
 const BACKEND_BASE_URL = "http://127.0.0.1:5000";
 let isDownloading = false;
@@ -178,7 +225,7 @@ function renderUI(state) {
 async function loadState() {
   try {
     // Lấy tab đang active
-    const tabs = await chrome.tabs.query({
+    const tabs = await queryTabs({
       active: true,
       currentWindow: true,
     });
@@ -194,7 +241,7 @@ async function loadState() {
     }
 
     // Gửi GET_STATE lên background
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendRuntimeMessage({
       type: "GET_STATE",
       tabId: currentTab.id,
     });
@@ -287,23 +334,23 @@ async function startFullPageCapture() {
     captureStatus.textContent = "Đang cuộn và chụp từng phần...";
     captureStatus.classList.remove("is-success", "is-error");
 
-    // Request content script to run simov-style fullpage capture
-    const result = await chrome.tabs.sendMessage(currentTab.id, {
-      type: "FULLPAGE_SIMOV_START",
-      delay: 140,
+    const result = await sendRuntimeMessage({
+      type: "CAPTURE_FULL_PAGE",
+      tabId: currentTab.id,
+      format: "image/png",
     });
 
-    if (!result?.ok) {
+    if (!result?.success) {
       throw new Error(result?.error || "CAPTURE_FAILED");
     }
 
-    // Build message based on whether user stopped early or reached end
-    let message = `Đã xuất ảnh: ${result.fileName || "fullpage.png"} (${result.capturedFrames || 1} khung)`;
-    if (result.userStopped) {
-      message = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    if (result.stoppedByUser) {
+      captureStatus.textContent = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    } else if (result.reachedEnd) {
+      captureStatus.textContent = `Đã chụp hết trang (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    } else {
+      captureStatus.textContent = `Đã xuất ảnh: ${result.fileName || "fullpage.png"}`;
     }
-    
-    captureStatus.textContent = message;
     captureStatus.classList.remove("is-error");
     captureStatus.classList.add("is-success");
   } catch (error) {
@@ -337,7 +384,7 @@ toggleSwitch.addEventListener("change", async () => {
     });
 
     // Gửi lệnh lên background
-    await chrome.runtime.sendMessage({
+    await sendRuntimeMessage({
       type: "TOGGLE_ENABLED",
       enabled: enabled,
     });
@@ -362,7 +409,7 @@ whitelistBtn.addEventListener("click", async () => {
     renderUI({ ...currentState, whitelisted: newWhitelisted });
 
     // Gửi lệnh lên background
-    await chrome.runtime.sendMessage({
+    await sendRuntimeMessage({
       type: "TOGGLE_WHITELIST",
       hostname: hostname,
     });
@@ -400,7 +447,7 @@ function startRealtimeUpdate() {
     try {
       if (!currentTab) return;
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendRuntimeMessage({
         type: "GET_STATE",
         tabId: currentTab.id,
       });
@@ -440,84 +487,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   await checkBackendStatus();
 });
 
-
-// --- TÍNH NĂNG 2: IMPORT (NHẬP) COOKIES ---
-if (btnImport && fileImport) {
-    // 1. Khi bấm nút Import, thực chất là đi bấm "ké" cái thẻ input file đang bị ẩn
-    btnImport.addEventListener('click', () => {
-        fileImport.click();
-    });
-
-    // 2. Khi người dùng đã chọn file xong
-    fileImport.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        
-        // 3. Hàm này chạy khi máy tính đọc file xong
-        reader.onload = async (e) => {
-            try {
-                // Biến văn bản thành mảng JavaScript
-                const cookies = JSON.parse(e.target.result);
-                
-                if (!Array.isArray(cookies)) {
-                    alert("File không đúng định dạng Cookie!");
-                    return;
-                }
-
-                let successCount = 0;
-
-                // Vòng lặp nhét từng Cookie vào trình duyệt
-                for (const cookie of cookies) {
-                    // API của Chrome yêu cầu phải tạo URL từ domain để nạp
-                    let domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
-                    let url = (cookie.secure ? "https://" : "http://") + domain + cookie.path;
-
-                    // Phải loại bỏ một số thuộc tính rác thì Chrome mới chịu nhận
-                    let newCookie = {
-                        url: url,
-                        name: cookie.name,
-                        value: cookie.value,
-                        domain: cookie.domain,
-                        path: cookie.path,
-                        secure: cookie.secure,
-                        httpOnly: cookie.httpOnly,
-                        sameSite: cookie.sameSite,
-                        storeId: cookie.storeId
-                    };
-
-                    // Nếu cookie có hạn sử dụng thì giữ nguyên
-                    if (!cookie.session && cookie.expirationDate) {
-                        newCookie.expirationDate = cookie.expirationDate;
-                    }
-
-                    // Bơm vào trình duyệt
-                    await chrome.cookies.set(newCookie);
-                    successCount++;
-                }
-
-                alert(`✅ Đã nạp thành công ${successCount} mã Cookies! Trang sẽ tự tải lại để áp dụng.`);
-                
-                // Nạp xong thì Reload lại trang để tài khoản đăng nhập thành công
-                if (currentTab && currentTab.id) {
-                    chrome.tabs.reload(currentTab.id);
-                }
-
-            } catch (error) {
-                console.error("Lỗi khi nạp Cookie:", error);
-                alert("❌ File bị lỗi hoặc không thể nạp Cookie! Xem Console để biết chi tiết.");
-            }
-            
-            // Dọn dẹp thẻ input để lần sau chọn lại đúng file đó không bị kẹt
-            fileImport.value = '';
-        };
-        
-        // Bắt đầu đọc file JSON
-        reader.readAsText(file);
-    });
-}
-
 // =============================================
 // BƯỚC 5B: XỬ LÝ BLOCKLIST (HỌC TẬP)
 // =============================================
@@ -538,7 +507,7 @@ blockSiteBtn.addEventListener("click", async () => {
         : (currentState.blockedDomains || []).filter((d) => d !== hostname),
     });
 
-    await chrome.runtime.sendMessage({
+    await sendRuntimeMessage({
       type: "TOGGLE_BLOCKED_DOMAIN",
       domain: hostname,
     });
@@ -563,7 +532,7 @@ blockAddBtn.addEventListener("click", async () => {
       return;
     }
 
-    const result = await chrome.runtime.sendMessage({
+    const result = await sendRuntimeMessage({
       type: "ADD_BLOCKED_DOMAIN",
       domain: normalized,
     });
@@ -594,7 +563,7 @@ blockedDomainsEl.addEventListener("click", async (e) => {
     const domain = target.dataset.domain;
     if (!domain) return;
 
-    await chrome.runtime.sendMessage({
+    await sendRuntimeMessage({
       type: "REMOVE_BLOCKED_DOMAIN",
       domain,
     });
@@ -617,10 +586,6 @@ if (downloadBtn) {
   downloadBtn.addEventListener("click", startVideoDownload);
 }
 
-if (captureFullPageBtn) {
-  captureFullPageBtn.addEventListener("click", startFullPageCapture);
-}
-
 if (videoUrlInput) {
   videoUrlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -636,49 +601,25 @@ if (videoUrlInput) {
   });
 }
 
-// =============================================
-// BƯỚC 9: XỬ LÝ TẢI VIDEO
-// =============================================
+if (captureFullPageBtn) {
+  captureFullPageBtn.addEventListener("click", startFullPageCapture);
+}
 
-// =============================================
-// BƯỚC 10: XỬ LÝ COOKIES (EXPORT / IMPORT)
-// =============================================
-// --- TÍNH NĂNG 1: EXPORT (XUẤT) COOKIES ---
-if (btnExport) {
-    btnExport.addEventListener('click', async () => {
-        try {
-            if (!currentTab || !currentTab.url) {
-                alert("Không thể đọc được trang web này!");
-                return;
-            }
-
-            // Lấy tên miền chuẩn
-            let url = new URL(currentTab.url);
-            let domain = url.hostname.replace('www.', ''); 
-
-            // Hút toàn bộ Cookie của tên miền
-            let cookies = await chrome.cookies.getAll({ domain: domain });
-
-            if (cookies.length === 0) {
-                alert("Trang web này chưa có Cookie nào (Bạn đã đăng nhập chưa?)");
-                return;
-            }
-
-            // Đóng gói thành file JSON và tải về
-            let jsonString = JSON.stringify(cookies, null, 2);
-            let blob = new Blob([jsonString], { type: "application/json" });
-            let downloadUrl = URL.createObjectURL(blob);
-
-            let a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = `J2Clone_Cookies_${domain}.json`; 
-            a.click();
-
-            URL.revokeObjectURL(downloadUrl);
-            
-        } catch (error) {
-            console.error("Lỗi khi xuất Cookie: ", error);
-            alert("Có lỗi xảy ra, vui lòng mở Console để xem chi tiết!");
-        }
-    });
+if (aiSidebarBtn) {
+  aiSidebarBtn.addEventListener("click", async () => {
+    try {
+      blocklistHint.textContent = "Dang mo cua so AI...";
+      try {
+        await sendRuntimeMessage({ type: "OPEN_AI_TAB" });
+        window.close();
+      } catch (error) {
+        const url = chrome.runtime.getURL("sidebar/dist/index.html");
+        await createTab(url);
+        window.close();
+      }
+    } catch (error) {
+      console.error("[Popup] Loi mo AI:", error);
+      blocklistHint.textContent = "Khong mo duoc AI. Hay reload extension.";
+    }
+  });
 }

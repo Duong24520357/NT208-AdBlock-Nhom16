@@ -1,51 +1,71 @@
 {
-    "name": "AdBlock",
-    "version": "1.0",
-    "description": "A simple ad blocker extension",
-    "manifest_version": 3,
-    "permissions": [
-        "declarativeNetRequest",
-        "declarativeNetRequestWithHostAccess",
-        "storage",
-        "tabs",
-        "cookies",
-        "activeTab"
-    ],
+  "name": "AdBlock",
+  "version": "1.0",
+  "description": "A simple ad blocker extension",
+  "manifest_version": 3,
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
+    "storage",
+    "tabs",
+    "cookies",
+    "activeTab",
+    "downloads",
+    "notifications"
+  ],
 
-    "host_permissions": [
-        "<all_urls>"
-    ],
+  "host_permissions": ["<all_urls>"],
 
-    "background": {
-        "service_worker": "background.js"
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["blocking/fullpage-capture.js", "content.js"],
+      "all_frames": true,
+      "run_at": "document_start"
     },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["ai-content.js"],
+      "run_at": "document_end"
+    }
+  ],
 
-    "content_scripts": [
-        {
-            "matches": ["<all_urls>"],
-            "js": ["blocking/ad-constants.js","blocking/ad-heuristics.js","blocking/cosmetic-engine.js","blocking/study-blocker.js","blocking/study-ui.js","blocking/element-picker.js","blocking/dom-observer.js","blocking/fullpage-capture.js", "content.js"],
-            "all_frames": true,
-            "run_at": "document_start"
-        }
-    ],
-
-    "declarative_net_request": {
-        "rule_resources": [
-            {
-                "id": "ruleset_1",
-                "enabled": true,
-                "path": "rules/rule.json"
-            }
-        ]
-    },
-    "action": {
-        "default_popup": "popup/popup.html",
-        "default_title": "AdBlock Extension"
-    },
-    "web_accessible_resources": [
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules/rule.json"
+      }
+    ]
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "AdBlock Extension"
+  },
+  "commands": {
+    "toggle-ai-sidebar": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K"
+      },
+      "description": "Toggle AI sidebar"
+    }
+  },
+  "web_accessible_resources": [
     {
       "resources": ["phishing-alert.html"],
       "matches": ["<all_urls>"]
+    },
+    {
+      "resources": ["sidebar/dist/**"],
+      "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:5000 http://localhost:5000 https://openrouter.ai"
+  }
 }
