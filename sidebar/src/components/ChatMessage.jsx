@@ -49,13 +49,7 @@ export default function ChatMessage({ message }) {
   }, [rendered]);
 
   return (
-    <div
-      className={
-        isUser
-          ? "flex justify-end"
-          : "flex justify-start"
-      }
-    >
+    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
         className={
           isUser

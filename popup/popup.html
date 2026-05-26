@@ -53,6 +53,9 @@
     </section>
 
     <section class="actions-section">
+        <button id="ai-sidebar-btn" class="btn btn-primary">
+            Chat AI
+        </button>
         <button id="whitelist-btn" class="btn btn-danger">
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -86,39 +89,6 @@
         <div id="blocklist-hint" class="blocklist-hint"></div>
     </section>
 
-    <!-- Cụm tính năng Quản lý Cookies -->
-    <hr class="divider" />
-
-<section class="cookies-section" style="padding: 10px 15px;">
-        <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #444;">
-            🍪 Quản lý Cookies
-        </div>
-        <div style="display: flex; gap: 10px;">
-            <button id="btnExport" class="btn btn-secondary" style="flex: 1; justify-content: center;">
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="margin-right: 5px;">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Xuất (Export)
-            </button>
-
-            <button id="btnImport" class="btn btn-secondary" style="flex: 1; justify-content: center;">
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="margin-right: 5px;">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                Nhập (Import)
-            </button>
-            
-            <!-- Input ẩn dùng để chọn file -->
-            <input type="file" id="fileImport" accept=".json" style="display: none;">
-        </div>
-    </section>
-
-    <hr class="divider" /> <!-- Thêm 1 cái gạch ngang cho đẹp -->
-
     <section class="download-section">
         <div class="download-title">Tải video</div>
         <div class="download-row">
@@ -139,5 +109,6 @@
     </footer>
 
     <script src="popup.js"></script>
+    </div>
 </body>
 </html>

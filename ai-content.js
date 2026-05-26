@@ -1,25 +1,25 @@
 (() => {
+  const AI_SIDEBAR_ENABLED = false;
+  if (!AI_SIDEBAR_ENABLED) return;
+
   if (window.top !== window.self) return;
-  if (window.__aiSidebarInjected) return;
-  window.__aiSidebarInjected = true;
 
   const SIDEBAR_CONTAINER_ID = "ai-sidebar-container";
   const SIDEBAR_IFRAME_ID = "ai-sidebar-iframe";
+  const SIDEBAR_TOGGLE_ID = "ai-sidebar-toggle";
   const SELECTION_MENU_ID = "ai-selection-menu";
   const OPEN_CLASS = "ai-sidebar-open";
   const DEFAULT_WIDTH = 420;
   const MIN_WIDTH = 320;
   const MAX_WIDTH = 720;
 
-  let sidebarOpen = false;
+  let sidebarOpen = true;
   let sidebarWidth = DEFAULT_WIDTH;
   let lastSelection = "";
   let isDragging = false;
   let dragStartX = 0;
   let dragStartWidth = DEFAULT_WIDTH;
   let repairObserver = null;
-  let watchdogTimer = null;
-  let userToggledSidebar = false;
 
   function getMountRoot() {
     return document.body || document.documentElement;
@@ -46,16 +46,11 @@
   }
 
   function loadSidebarPrefs() {
-    if (!chrome?.storage?.local) {
-      applySidebarState();
-      return;
-    }
-
     chrome.storage.local.get(["aiSidebarWidth", "aiSidebarOpen"], (data) => {
       if (typeof data.aiSidebarWidth === "number") {
         sidebarWidth = clampWidth(data.aiSidebarWidth);
       }
-      if (!userToggledSidebar && typeof data.aiSidebarOpen === "boolean") {
+      if (typeof data.aiSidebarOpen === "boolean") {
         sidebarOpen = data.aiSidebarOpen;
       }
       applySidebarState();
@@ -92,6 +87,25 @@
         border: none;
         background: transparent;
       }
+
+      #${SIDEBAR_TOGGLE_ID} {
+        position: fixed;
+        top: 40%;
+        right: 0;
+        transform: translateX(0);
+        background: linear-gradient(135deg, #101827, #1f2937);
+        color: #f8fafc;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-right: none;
+        border-radius: 12px 0 0 12px;
+        padding: 10px 12px;
+        font: 600 12px/1.2 "Sora", "Space Grotesk", system-ui, sans-serif;
+        cursor: pointer;
+        z-index: 2147483647;
+        transition: transform 0.25s ease, opacity 0.25s ease;
+        box-shadow: -6px 0 16px rgba(15, 23, 42, 0.35);
+      }
+
 
       #${SIDEBAR_CONTAINER_ID} .ai-resize-handle {
         position: absolute;
@@ -135,52 +149,50 @@
   }
 
   function ensureSidebar() {
-    if (!document.documentElement) return;
+    if (document.getElementById(SIDEBAR_CONTAINER_ID)) return;
 
     ensureStyles();
 
-    let container = document.getElementById(SIDEBAR_CONTAINER_ID);
-    const createdContainer = !container;
+    const container = document.createElement("div");
+    container.id = SIDEBAR_CONTAINER_ID;
 
-    if (!container) {
-      container = document.createElement("div");
-      container.id = SIDEBAR_CONTAINER_ID;
+    const handle = document.createElement("div");
+    handle.className = "ai-resize-handle";
+    handle.addEventListener("mousedown", (event) => {
+      isDragging = true;
+      dragStartX = event.clientX;
+      dragStartWidth = sidebarWidth;
+      event.preventDefault();
+    });
 
-      const handle = document.createElement("div");
-      handle.className = "ai-resize-handle";
-      handle.addEventListener("mousedown", (event) => {
-        isDragging = true;
-        dragStartX = event.clientX;
-        dragStartWidth = sidebarWidth;
-        event.preventDefault();
-      });
+    const iframe = document.createElement("iframe");
+    iframe.id = SIDEBAR_IFRAME_ID;
+    iframe.src = chrome.runtime.getURL("sidebar/dist/index.html");
+    iframe.title = "AI Sidebar";
 
-      const iframe = document.createElement("iframe");
-      iframe.id = SIDEBAR_IFRAME_ID;
-      iframe.src = chrome.runtime.getURL("sidebar/dist/index.html");
-      iframe.title = "AI Sidebar";
+    container.appendChild(handle);
+    container.appendChild(iframe);
+    getMountRoot().appendChild(container);
 
-      container.appendChild(handle);
-      container.appendChild(iframe);
-      const root = getMountRoot();
-      if (!root) return;
-      root.appendChild(container);
+    const toggle = document.createElement("button");
+    toggle.id = SIDEBAR_TOGGLE_ID;
+    toggle.textContent = "AI";
+    toggle.addEventListener("click", () => toggleSidebar());
+    getMountRoot().appendChild(toggle);
 
-      iframe.addEventListener("load", () => {
-        postContextToSidebar();
-        postSidebarState();
-      });
-    }
+    window.addEventListener("mousemove", handleDrag);
+    window.addEventListener("mouseup", stopDrag);
 
-    if (createdContainer) {
-      window.addEventListener("mousemove", handleDrag);
-      window.addEventListener("mouseup", stopDrag);
-    }
+    iframe.addEventListener("load", () => {
+      postContextToSidebar();
+      postSidebarState();
+    });
   }
 
   function applySidebarState() {
     const container = document.getElementById(SIDEBAR_CONTAINER_ID);
-    if (!container) return;
+    const toggle = document.getElementById(SIDEBAR_TOGGLE_ID);
+    if (!container || !toggle) return;
 
     container.style.width = `${sidebarWidth}px`;
     if (sidebarOpen) {
@@ -188,13 +200,12 @@
     } else {
       container.classList.remove(OPEN_CLASS);
     }
+    toggle.dataset.open = sidebarOpen ? "true" : "false";
 
     postSidebarState();
   }
 
   function toggleSidebar(forceOpen) {
-    userToggledSidebar = true;
-    ensureSidebar();
     sidebarOpen = typeof forceOpen === "boolean" ? forceOpen : !sidebarOpen;
     applySidebarState();
     saveSidebarOpen(sidebarOpen);
@@ -365,7 +376,6 @@
 
     if (message.type === "AI_TOGGLE_SIDEBAR") {
       toggleSidebar();
-      return true;
     }
 
     if (message.type === "AI_OPEN_SIDEBAR") {
@@ -373,36 +383,14 @@
       if (message.payload?.text) {
         sendSelectionPrompt("ask", message.payload.text);
       }
-      return true;
-    }
-
-    if (message.type === "AI_PING") {
-      return true;
     }
   }
 
   function init() {
-    if (document.readyState === "loading") {
-      document.addEventListener(
-        "DOMContentLoaded",
-        () => {
-          ensureSidebar();
-          ensureSelectionMenu();
-          applySidebarState();
-          loadSidebarPrefs();
-          startRepairObserver();
-          startWatchdog();
-        },
-        { once: true },
-      );
-    } else {
-      ensureSidebar();
-      ensureSelectionMenu();
-      applySidebarState();
-      loadSidebarPrefs();
-      startRepairObserver();
-      startWatchdog();
-    }
+    ensureSidebar();
+    ensureSelectionMenu();
+    loadSidebarPrefs();
+    startRepairObserver();
 
     document.addEventListener("mouseup", () => {
       setTimeout(updateSelectionMenu, 10);
@@ -423,30 +411,17 @@
     });
 
     window.addEventListener("message", handleMessage);
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      const handled = handleChromeMessage(message);
-      if (handled && typeof sendResponse === "function") {
-        sendResponse({ ok: true });
-      }
+    chrome.runtime.onMessage.addListener((message) => {
+      handleChromeMessage(message);
     });
-  }
-
-  function startWatchdog() {
-    if (watchdogTimer) return;
-    watchdogTimer = window.setInterval(() => {
-      const container = document.getElementById(SIDEBAR_CONTAINER_ID);
-      if (!container) {
-        ensureSidebar();
-        applySidebarState();
-      }
-    }, 2000);
   }
 
   function startRepairObserver() {
     if (repairObserver) return;
     repairObserver = new MutationObserver(() => {
       const container = document.getElementById(SIDEBAR_CONTAINER_ID);
-      if (!container) {
+      const toggle = document.getElementById(SIDEBAR_TOGGLE_ID);
+      if (!container || !toggle) {
         ensureSidebar();
         applySidebarState();
       }

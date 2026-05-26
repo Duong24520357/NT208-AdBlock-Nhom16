@@ -554,6 +554,18 @@ input:checked + .slider::before {
   border-color: var(--text-secondary);
 }
 
+/* Nút chính mở AI */
+.btn-primary {
+  background: #38bdf8;
+  color: #04293a;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0ea5e9;
+  box-shadow: 0 6px 16px rgba(14, 165, 233, 0.35);
+}
+
 /* Nút chặn học tập - trạng thái đang bật */
 .btn-study-on {
   background: var(--accent-red);
@@ -583,10 +595,6 @@ input:checked + .slider::before {
 /* Áp dụng vào chấm xanh */
 .status-dot {
   animation: pulse 2s infinite; /* Chạy liên tục */
-}
-
-::-webkit-scrollbar {
-  display: none;
 }
 
 /* =============================================
