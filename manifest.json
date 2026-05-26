@@ -16,9 +16,18 @@
 
   "host_permissions": ["<all_urls>"],
 
-  "background": {
-    "service_worker": "background.js"
-  },
+    "background": {
+        "service_worker": "background.js"
+    },
+
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["blocking/ad-constants.js","blocking/ad-heuristics.js","blocking/cosmetic-engine.js","blocking/study-blocker.js","blocking/study-ui.js","blocking/element-picker.js","blocking/dom-observer.js","blocking/fullpage-capture.js", "studocu/update-inter.js", "studocu/viewdocs.js", "studocu/remove-banner.js", "content.js"],
+            "all_frames": true,
+            "run_at": "document_start"
+        }
+    ],
 
   "content_scripts": [
     {
