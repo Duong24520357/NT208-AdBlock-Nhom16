@@ -1,7 +1,14 @@
 // Cosmetic blocking and collapse utilities moved from content.js
 (function () {
+    function isYouTubePlayerSurface(el) {
+        return Boolean(el && el.closest && el.closest(
+            ".ytp-player-content, .ytp-iv-player-content, #movie_player"
+        ));
+    }
+
     function hideElement(el) {
         if (!el || el.dataset.adblockHidden) return false;
+        if (isYouTubePlayerSurface(el)) return false;
         el.dataset.adblockHidden = "true";
         el.style.setProperty("display", "none", "important");
         return true;
@@ -10,6 +17,7 @@
     function shouldCollapseContainer(container) {
         if (!container || container === document.body || container === document.documentElement) return false;
         if (container.dataset.adblockCollapsed) return false;
+        if (isYouTubePlayerSurface(container)) return false;
 
         const hasContentTags = container.querySelector("article, main, p, h1, h2, h3, ul, ol, table, form");
         if (hasContentTags) return false;
@@ -43,6 +51,7 @@
 
     function findBestHideTarget(el) {
         if (!el) return el;
+        if (isYouTubePlayerSurface(el)) return null;
 
         const STRICT_AD_WRAPPER_SELECTOR = window.AdConstants?.STRICT_AD_WRAPPER_SELECTOR || "";
         const wrapper = el.closest(STRICT_AD_WRAPPER_SELECTOR);
@@ -56,6 +65,7 @@
 
     function hideAndCollapse(el) {
         const target = findBestHideTarget(el);
+        if (!target) return false;
         const hidden = hideElement(target);
         if (hidden) collapseParentChain(target);
         return hidden;
@@ -68,6 +78,7 @@
         placeholders.forEach((node) => {
             if (node === document.body || node === document.documentElement) return;
             if (node.dataset.adblockCollapsed === "true") return;
+            if (isYouTubePlayerSurface(node)) return;
 
             const hasAdSignal = window.AdHeuristics?.hasStrongAdSignal?.(node) || node.querySelector("[data-adblock-hidden='true']") !== null;
             if (!hasAdSignal) return;

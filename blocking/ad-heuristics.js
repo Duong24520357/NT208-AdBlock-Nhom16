@@ -1,7 +1,14 @@
 // Ad detection heuristics moved from content.js
 (function () {
+    function isYouTubePlayerSurface(node) {
+        return Boolean(node && node.closest && node.closest(
+            ".ytp-player-content, .ytp-iv-player-content, #movie_player"
+        ));
+    }
+
     function hasStrongAdSignal(node) {
         if (!node) return false;
+        if (isYouTubePlayerSurface(node)) return false;
 
         const AD_DOMAINS = window.AdConstants?.AD_DOMAINS || [];
         const text = `${node.id || ""} ${typeof node.className === "string" ? node.className : ""}`.toLowerCase();
@@ -36,9 +43,12 @@
         };
 
         videoContainers.forEach(element => {
+            if (isYouTubePlayerSurface(element)) return;
+
             const priorityContainer = getCandidateContainer(element);
             const candidate = priorityContainer || element;
             if (candidate.dataset.adblockHidden) return;
+            if (isYouTubePlayerSurface(candidate)) return;
 
             const style = window.getComputedStyle(candidate);
             const rect = candidate.getBoundingClientRect();
@@ -93,6 +103,7 @@
         specificSelectors.forEach(sel => {
             try {
                 document.querySelectorAll(sel).forEach(el => {
+                    if (isYouTubePlayerSurface(el)) return;
                     if (!el.dataset.adblockHidden) {
                         if (window.hideAndCollapse?.(el)) {
                             hiddenCount++;
@@ -104,6 +115,8 @@
         });
 
         document.querySelectorAll("video:not([data-adblock-hidden])").forEach(video => {
+            if (isYouTubePlayerSurface(video)) return;
+
             const hasAutoplay = video.hasAttribute("autoplay") || video.autoplay;
             const hasMuted    = video.hasAttribute("muted")    || video.muted;
             const hasNoControls = !video.hasAttribute("controls") && !video.controls;
@@ -141,6 +154,8 @@
         });
 
         document.querySelectorAll("iframe:not([data-adblock-hidden])").forEach(iframe => {
+            if (isYouTubePlayerSurface(iframe)) return;
+
             const src = (iframe.src || iframe.getAttribute("data-src") || "").toLowerCase();
             const isAdSrc = AD_DOMAINS.some(d => src.includes(d));
 
