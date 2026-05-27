@@ -3,7 +3,7 @@
 // =============================================
 const toggleSwitch = document.getElementById("toggle-switch");
 const toggleLabel = document.getElementById("toggle-label");
-const whitelistBtn = document.getElementById("whitelist-btn");
+// const whitelistBtn = document.getElementById("whitelist-btn");
 const pickerBtn = document.getElementById("picker-btn");
 const tabBlockedCount = document.getElementById("tab-blocked-count");
 const totalBlockedCount = document.getElementById("total-blocked-count");
@@ -17,9 +17,15 @@ const blocklistHint = document.getElementById("blocklist-hint");
 const videoUrlInput = document.getElementById("video-url-input");
 const downloadBtn = document.getElementById("download-btn");
 const downloadStatus = document.getElementById("download-status");
+// legacy select removed; use custom fmtBadge dropdown instead
 const captureFullPageBtn = document.getElementById("capture-fullpage-btn");
 const captureStatus = document.getElementById("capture-status");
 const aiSidebarBtn = document.getElementById("ai-sidebar-btn");
+const fmtDd      = document.getElementById('fmtDd');
+const fmtMenu    = document.getElementById('fmtMenu');
+const fmtTrigger = document.getElementById('fmtTrigger');
+const fmtBadge   = document.getElementById('fmtBadge');
+const fmtLabel   = document.getElementById('fmtLabel');
 
 function sendTabMessage(tabId, message) {
   return new Promise((resolve, reject) => {
@@ -81,6 +87,166 @@ let currentState = null;
 let currentTab = null;
 let updateInterval = null;
 let isCapturingFullPage = false;
+
+function getCaptureFilename(contentURL) {
+  let name = String(contentURL || "").split("?")[0].split("#")[0];
+  if (name) {
+    name = name
+      .replace(/^https?:\/\//, "")
+      .replace(/[^A-z0-9]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[_\-]+/, "")
+      .replace(/[_\-]+$/, "");
+    name = `-${name}`;
+  } else {
+    name = "";
+  }
+  return `screencapture${name}-${Date.now()}.png`;
+}
+
+function getCaptureBaseName(contentURL) {
+  return getCaptureFilename(contentURL).replace(/\.png$/i, "");
+}
+
+function downloadBlob(blob, filename) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob);
+    chrome.downloads.download(
+      {
+        url: objectUrl,
+        filename,
+        saveAs: false,
+      },
+      (downloadId) => {
+        const error = chrome.runtime.lastError;
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+        if (error) {
+          reject(new Error(error.message || "DOWNLOAD_FAILED"));
+          return;
+        }
+        resolve(downloadId);
+      },
+    );
+  });
+}
+
+function loadImageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("IMAGE_LOAD_FAILED"));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function imageToJpegBinary(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, image.width || 1);
+  canvas.height = Math.max(1, image.height || 1);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("CANVAS_CONTEXT_FAILED");
+  }
+  ctx.drawImage(image, 0, 0);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  return atob(dataUrl.split(",")[1]);
+}
+
+function buildPdfBlobFromImages(images) {
+  const pages = images.map((image) => ({
+    width: Math.max(1, Math.round(image.width || 1)),
+    height: Math.max(1, Math.round(image.height || 1)),
+    jpeg: imageToJpegBinary(image),
+  }));
+
+  const textEncoder = new TextEncoder();
+  const bytesFromText = (text) => textEncoder.encode(text);
+  const bytesFromBinary = (binary) => {
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i) & 0xff;
+    }
+    return bytes;
+  };
+
+  const chunks = [];
+  const offsets = [0];
+  let byteLength = 0;
+
+  const appendChunk = (chunk) => {
+    chunks.push(chunk);
+    byteLength += chunk.length;
+  };
+
+  const appendText = (text) => appendChunk(bytesFromText(text));
+
+  const appendObject = (objectId, bodyChunks) => {
+    offsets[objectId] = byteLength;
+    appendText(`${objectId} 0 obj\n`);
+    bodyChunks.forEach((chunk) => appendChunk(chunk));
+    appendText("\nendobj\n");
+  };
+
+  const header = new Uint8Array([
+    0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3,
+    0xcf, 0xd3, 0x0a,
+  ]);
+  appendChunk(header);
+
+  const pageObjects = [];
+  pages.forEach((page, index) => {
+    const imageObjectId = 3 + index * 3;
+    const contentObjectId = 4 + index * 3;
+    const pageObjectId = 5 + index * 3;
+    pageObjects.push(pageObjectId);
+
+    appendObject(imageObjectId, [
+      bytesFromText(
+        `<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.jpeg.length} >>\nstream\n`,
+      ),
+      bytesFromBinary(page.jpeg),
+      bytesFromText("\nendstream"),
+    ]);
+
+    const contentStream = `q\n${page.width} 0 0 ${page.height} 0 0 cm\n/Im${index + 1} Do\nQ\n`;
+    appendObject(contentObjectId, [
+      bytesFromText(`<< /Length ${contentStream.length} >>\nstream\n${contentStream}`),
+      bytesFromText("endstream"),
+    ]);
+
+    appendObject(pageObjectId, [
+      bytesFromText(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /XObject << /Im${index + 1} ${imageObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`,
+      ),
+    ]);
+  });
+
+  appendObject(1, [bytesFromText("<< /Type /Catalog /Pages 2 0 R >>")]);
+  appendObject(2, [
+    bytesFromText(
+      `<< /Type /Pages /Kids [${pageObjects.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageObjects.length} >>`,
+    ),
+  ]);
+
+  const xrefOffset = byteLength;
+  appendText(`xref\n0 ${pageObjects.length * 3 + 3}\n`);
+  appendText("0000000000 65535 f \n");
+  for (let objectId = 1; objectId <= pageObjects.length * 3 + 2; objectId += 1) {
+    appendText(`${String(offsets[objectId]).padStart(10, "0")} 00000 n \n`);
+  }
+  appendText(
+    `trailer\n<< /Size ${pageObjects.length * 3 + 3} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`,
+  );
+
+  return new Blob(chunks, { type: "application/pdf" });
+}
 
 function normalizeDomain(input) {
   const raw = (input || "").trim().toLowerCase();
@@ -174,24 +340,24 @@ function renderUI(state) {
   }
 
   // --- Nút Whitelist ---
-  if (!state.enabled) {
-    // AdBlock tắt → disable nút whitelist
-    whitelistBtn.disabled = true;
-    whitelistBtn.textContent = "Tắt cho trang này";
-    whitelistBtn.style.opacity = "0.5";
-  } else if (state.whitelisted) {
-    // Domain trong whitelist → hiện "Bật cho trang này"
-    whitelistBtn.disabled = false;
-    whitelistBtn.textContent = "✅ Bật cho trang này";
-    whitelistBtn.style.background = "#f39c12";
-    whitelistBtn.style.opacity = "1";
-  } else {
-    // Domain không trong whitelist → hiện "Tắt cho trang này"
-    whitelistBtn.disabled = false;
-    whitelistBtn.textContent = "🚫 Tắt cho trang này";
-    whitelistBtn.style.background = "#e74c3c";
-    whitelistBtn.style.opacity = "1";
-  }
+  // if (!state.enabled) {
+  //   // AdBlock tắt → disable nút whitelist
+  //   whitelistBtn.disabled = true;
+  //   whitelistBtn.textContent = "Tắt cho trang này";
+  //   whitelistBtn.style.opacity = "0.5";
+  // } else if (state.whitelisted) {
+  //   // Domain trong whitelist → hiện "Bật cho trang này"
+  //   whitelistBtn.disabled = false;
+  //   whitelistBtn.textContent = "✅ Bật cho trang này";
+  //   whitelistBtn.style.background = "#f39c12";
+  //   whitelistBtn.style.opacity = "1";
+  // } else {
+  //   // Domain không trong whitelist → hiện "Tắt cho trang này"
+  //   whitelistBtn.disabled = false;
+  //   whitelistBtn.textContent = "🚫 Tắt cho trang này";
+  //   whitelistBtn.style.background = "#e74c3c";
+  //   whitelistBtn.style.opacity = "1";
+  // }
 
   // --- Nút Element Picker ---
   pickerBtn.disabled = !state.enabled || state.whitelisted;
@@ -233,12 +399,12 @@ async function loadState() {
     currentTab = tabs[0];
 
     // Kiểm tra tab có hợp lệ không
-    if (!currentTab || !currentTab.url?.startsWith("http")) {
-      hostnameLabel.textContent = "Không hỗ trợ trang này";
-      whitelistBtn.disabled = true;
-      pickerBtn.disabled = true;
-      return;
-    }
+    // if (!currentTab || !currentTab.url?.startsWith("http")) {
+    //   hostnameLabel.textContent = "Không hỗ trợ trang này";
+    //   whitelistBtn.disabled = true;
+    //   pickerBtn.disabled = true;
+    //   return;
+    // }
 
     // Gửi GET_STATE lên background
     const response = await sendRuntimeMessage({
@@ -331,25 +497,51 @@ async function startFullPageCapture() {
 
     isCapturingFullPage = true;
     captureFullPageBtn.disabled = true;
-    captureStatus.textContent = "Đang cuộn và chụp từng phần...";
+    const format = getCaptureFormat();
+    captureStatus.textContent =
+      format === "pdf" ? "Đang tạo file PDF..." : "Đang chụp PNG...";
     captureStatus.classList.remove("is-success", "is-error");
 
-    const result = await sendRuntimeMessage({
-      type: "CAPTURE_FULL_PAGE",
-      tabId: currentTab.id,
-      format: "image/png",
-    });
-
-    if (!result?.success) {
-      throw new Error(result?.error || "CAPTURE_FAILED");
+    if (!window.CaptureAPI) {
+      throw new Error("CAPTURE_API_NOT_LOADED");
     }
 
-    if (result.stoppedByUser) {
-      captureStatus.textContent = `Đã lưu ảnh tạm (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
-    } else if (result.reachedEnd) {
-      captureStatus.textContent = `Đã chụp hết trang (${result.capturedFrames || 1} khung): ${result.fileName || "fullpage.png"}`;
+    const baseName = getCaptureBaseName(currentTab.url);
+    const blobs = await new Promise((resolve, reject) => {
+      window.CaptureAPI.captureToBlobs(
+        currentTab,
+        (resultBlobs) => resolve(resultBlobs),
+        (reason) => reject(new Error(reason || "CAPTURE_FAILED")),
+        (complete) => {
+          if (complete === 0) {
+            captureStatus.textContent = "Đang mở page.js và cuộn trang...";
+            return;
+          }
+          captureStatus.textContent = `Đang chụp: ${Math.round(complete * 100)}%`;
+        },
+        () => {
+          captureStatus.textContent = "Trang quá dài, ảnh sẽ được tách thành nhiều file.";
+        },
+      );
+    });
+
+    if (format === "png") {
+      const downloads = [];
+      for (let i = 0; i < blobs.length; i += 1) {
+        const suffix = blobs.length > 1 ? `-${i + 1}` : "";
+        const filename = `${baseName}${suffix}.png`;
+        downloads.push(downloadBlob(blobs[i], filename));
+      }
+      await Promise.all(downloads);
+      captureStatus.textContent = `Đã tải ${blobs.length} file PNG.`;
     } else {
-      captureStatus.textContent = `Đã xuất ảnh: ${result.fileName || "fullpage.png"}`;
+      const images = [];
+      for (const blob of blobs) {
+        images.push(await loadImageFromBlob(blob));
+      }
+      const pdfBlob = buildPdfBlobFromImages(images);
+      await downloadBlob(pdfBlob, `${baseName}.pdf`);
+      captureStatus.textContent = `Đã tải PDF từ ${blobs.length} khung ảnh.`;
     }
     captureStatus.classList.remove("is-error");
     captureStatus.classList.add("is-success");
@@ -398,26 +590,26 @@ toggleSwitch.addEventListener("change", async () => {
 // =============================================
 // BƯỚC 5: XỬ LÝ WHITELIST
 // =============================================
-whitelistBtn.addEventListener("click", async () => {
-  try {
-    if (!currentTab) return;
+// whitelistBtn.addEventListener("click", async () => {
+//   try {
+//     if (!currentTab) return;
 
-    const hostname = new URL(currentTab.url).hostname;
+//     const hostname = new URL(currentTab.url).hostname;
 
-    // Cập nhật UI ngay lập tức
-    const newWhitelisted = !currentState.whitelisted;
-    renderUI({ ...currentState, whitelisted: newWhitelisted });
+//     // Cập nhật UI ngay lập tức
+//     const newWhitelisted = !currentState.whitelisted;
+//     renderUI({ ...currentState, whitelisted: newWhitelisted });
 
-    // Gửi lệnh lên background
-    await sendRuntimeMessage({
-      type: "TOGGLE_WHITELIST",
-      hostname: hostname,
-    });
-  } catch (error) {
-    console.error("[Popup] Lỗi whitelist:", error);
-    renderUI(currentState);
-  }
-});
+//     // Gửi lệnh lên background
+//     await sendRuntimeMessage({
+//       type: "TOGGLE_WHITELIST",
+//       hostname: hostname,
+//     });
+//   } catch (error) {
+//     console.error("[Popup] Lỗi whitelist:", error);
+//     renderUI(currentState);
+//   }
+// });
 
 // =============================================
 // BƯỚC 6: XỬ LÝ ELEMENT PICKER
@@ -485,6 +677,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadState(); // Load state từ background
   startRealtimeUpdate(); // Bắt đầu cập nhật realtime
   await checkBackendStatus();
+  await initCaptureFormat(); // Load saved capture format preference
+  // Wire dropdown controls (no inline handlers to satisfy CSP)
+  try {
+    if (fmtTrigger) fmtTrigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.debug('[Popup] fmtTrigger clicked');
+      try { fmtToggle(); } catch (err) { console.error('fmtToggle error', err); }
+    });
+    // keep clicks inside dropdown from bubbling (so document click doesn't immediately close it)
+    if (fmtDd) fmtDd.addEventListener('click', (e) => { e.stopPropagation(); });
+    document.querySelectorAll('.fmt-item').forEach((item) => {
+      item.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const badge = item.querySelector('.fmt-badge');
+        const value = badge?.dataset?.type || 'png';
+        const label = (badge?.textContent || value).toUpperCase();
+        console.debug('[Popup] fmt item pick', value, label);
+        fmtPick(value, label, item);
+      });
+    });
+  } catch (e) {
+    // ignore wiring errors
+  }
 });
 
 // =============================================
@@ -622,4 +839,79 @@ if (aiSidebarBtn) {
       blocklistHint.textContent = "Khong mo duoc AI. Hay reload extension.";
     }
   });
+}
+
+function getCaptureFormat() {
+  return fmtBadge.dataset.type;
+}
+
+function fmtToggle() {
+  const isOpen = fmtMenu.classList.contains('open');
+  fmtMenu.classList.toggle('open', !isOpen);
+  fmtTrigger.classList.toggle('open', !isOpen);
+}
+
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#fmtDd')) {
+    fmtMenu.classList.remove('open');
+    fmtTrigger.classList.remove('open');
+  }
+});
+
+// Persist selected capture format and initialize on load
+function storageGet(keys) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(keys, (res) => resolve(res || {}));
+  });
+}
+
+function storageSet(obj) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set(obj, () => resolve());
+  });
+}
+
+// Persist selection when user picks an option
+function fmtPick(value, label, el) {
+  fmtBadge.textContent = label;
+  fmtBadge.dataset.type = value;
+  fmtLabel.textContent = label;
+
+  document.querySelectorAll('.fmt-item').forEach(i => i.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+
+  fmtMenu.classList.remove('open');
+  fmtTrigger.classList.remove('open');
+
+  // save preference
+  try {
+    storageSet({ captureFormat: value });
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+// Initialize stored format on popup open
+async function initCaptureFormat() {
+  try {
+    const { captureFormat } = await storageGet(['captureFormat']);
+    const value = captureFormat || (fmtBadge && fmtBadge.dataset && fmtBadge.dataset.type) || 'png';
+    const label = String(value || 'png').toUpperCase();
+    fmtBadge.dataset.type = value;
+    fmtBadge.textContent = label;
+    fmtLabel.textContent = label;
+
+    // mark selected item in menu
+    document.querySelectorAll('.fmt-item').forEach((item) => {
+      const itemBadge = item.querySelector('.fmt-badge');
+      if (itemBadge && itemBadge.dataset.type === value) {
+        item.classList.add('selected');
+      } else {
+        item.classList.remove('selected');
+      }
+    });
+  } catch (e) {
+    // ignore
+  }
 }
