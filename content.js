@@ -185,16 +185,8 @@ function injectAdBlockCSS() {
 
 // DOM observer moved to blocking/dom-observer.js as window.DOMObserver
 
-// Full page capture moved to blocking/fullpage-capture.js as window.FullPageCapture
-
 // Lắng nghe message từ background.js
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (String(message.type || "").startsWith("FULLPAGE_")) {
-    return (
-      window.FullPageCapture?.handleMessage?.(message, sendResponse) || false
-    );
-  }
-
   switch (message.type) {
     case "APPLY_COSMETIC_FILTERS":
       if (message.enabled) {

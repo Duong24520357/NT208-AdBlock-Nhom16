@@ -140,170 +140,6 @@ async function captureVisibleTabWithThrottle(windowId, retries = 3) {
   }
 }
 
-async function requestTabMessage(tabId, message) {
-  try {
-    return await chrome.tabs.sendMessage(tabId, message, { frameId: 0 });
-  } catch {
-    return null;
-  }
-}
-
-function withTimeout(promise, timeoutMs, onTimeout) {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      if (onTimeout) onTimeout();
-      reject(new Error("CAPTURE_TIMEOUT"));
-    }, timeoutMs);
-  });
-
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
-}
-
-async function captureFullPage(tabId, options = {}) {
-  const tab = await chrome.tabs.get(tabId);
-  if (!tab?.windowId) {
-    throw new Error("TAB_NOT_FOUND");
-  }
-
-  let originalScrollY = 0;
-
-  const metrics = await requestTabMessage(tabId, {
-    type: "FULLPAGE_GET_METRICS",
-  });
-  if (!metrics?.ok) {
-    throw new Error("CAPTURE_NOT_AVAILABLE");
-  }
-
-  const initResult = await requestTabMessage(tabId, {
-    type: "FULLPAGE_STITCH_INIT",
-    totalHeight: metrics.totalHeight,
-    viewportHeight: metrics.viewportHeight,
-    viewportWidth: metrics.viewportWidth,
-    hostname: metrics.hostname,
-    format: options.format,
-  });
-  if (!initResult?.ok) {
-    throw new Error(initResult?.reason || "STITCH_INIT_FAILED");
-  }
-
-  originalScrollY = metrics.originalScrollY || 0;
-
-  try {
-    const viewportHeight = Math.max(1, Math.ceil(metrics.viewportHeight || 0));
-    const overlap = Math.min(120, Math.floor(viewportHeight * 0.15));
-    const step = Math.max(1, viewportHeight - overlap);
-    let nextY = originalScrollY;
-    let lastCapturedY = -1;
-    let capturedFrames = 0;
-    let reachedEnd = false;
-    let stoppedByUser = false;
-
-    const maxFrames = Math.max(
-      3,
-      Math.ceil((metrics.totalHeight || viewportHeight) / step) + 6,
-    );
-
-    while (capturedFrames < maxFrames) {
-      const scrollResult = await requestTabMessage(tabId, {
-        type: "FULLPAGE_SCROLL_TO",
-        y: nextY,
-      });
-      if (!scrollResult?.ok) {
-        throw new Error("SCROLL_FAILED");
-      }
-
-      await delay(180);
-
-      const dataUrl = await captureVisibleTabWithThrottle(tab.windowId);
-      const actualY = Math.max(0, Math.floor(scrollResult.y || 0));
-
-      if (actualY === lastCapturedY && capturedFrames > 0) {
-        reachedEnd = true;
-        break;
-      }
-
-      const addResult = await requestTabMessage(tabId, {
-        type: "FULLPAGE_STITCH_ADD",
-        y: actualY,
-        dataUrl,
-      });
-      if (!addResult?.ok) {
-        throw new Error("STITCH_ADD_FAILED");
-      }
-
-      capturedFrames += 1;
-      lastCapturedY = actualY;
-
-      const confirmResult = await requestTabMessage(tabId, {
-        type: "FULLPAGE_CONFIRM_NEXT",
-        currentFrame: capturedFrames,
-      });
-
-      if (!confirmResult?.ok) {
-        throw new Error(confirmResult?.reason || "CONFIRM_FAILED");
-      }
-
-      if (!confirmResult.continueCapture) {
-        stoppedByUser = true;
-        break;
-      }
-
-      const liveMetrics = await requestTabMessage(tabId, {
-        type: "FULLPAGE_GET_METRICS",
-      });
-      if (!liveMetrics?.ok) {
-        throw new Error("CAPTURE_NOT_AVAILABLE");
-      }
-
-      const maxScrollY = Math.max(
-        0,
-        Math.ceil(liveMetrics.totalHeight || 0) -
-          Math.ceil(liveMetrics.viewportHeight || viewportHeight),
-      );
-
-      nextY = Math.min(actualY + step, maxScrollY);
-
-      if (nextY <= actualY + 1) {
-        reachedEnd = true;
-        break;
-      }
-
-      if (lastCapturedY === nextY && nextY > 0) {
-        reachedEnd = true;
-        break;
-      }
-    }
-
-    const finalizeResult = await requestTabMessage(tabId, {
-      type: "FULLPAGE_STITCH_FINALIZE",
-    });
-    if (!finalizeResult?.ok) {
-      throw new Error("STITCH_FINALIZE_FAILED");
-    }
-
-    return {
-      success: true,
-      fileName: finalizeResult.fileName,
-      capturedFrames,
-      reachedEnd,
-      stoppedByUser,
-    };
-  } catch (error) {
-    await requestTabMessage(tabId, {
-      type: "FULLPAGE_STITCH_ABORT",
-    });
-    throw error;
-  } finally {
-    await requestTabMessage(tabId, {
-      type: "FULLPAGE_SCROLL_TO",
-      y: originalScrollY,
-    });
-  }
-}
-
 // Hàm đọc state từ storage và áp dụng khi extension được cài đặt hoặc Chrome khởi động
 chrome.runtime.onInstalled.addListener(async () => {
   await loadState(); // 1. Đọc state cũ
@@ -459,53 +295,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return true;
 
-    case "CAPTURE_FULL_PAGE":
+    case "CAPTURE_VIEWPORT":
       {
-        const activeTabId = message.tabId || sender.tab?.id;
-        if (!activeTabId) {
-          sendResponse({ success: false, error: "TAB_ID_REQUIRED" });
+        // Content script requests the background to capture the visible viewport
+        // We use sender.tab.windowId to call captureVisibleTabWithThrottle
+        const winId = sender.tab?.windowId;
+        if (typeof winId === "undefined") {
+          sendResponse({ ok: false, reason: "NO_WINDOW_ID" });
           return false;
         }
 
-        let responded = false;
-        const safeRespond = (payload) => {
-          if (responded) return;
-          responded = true;
-          sendResponse(payload);
-        };
+        captureVisibleTabWithThrottle(winId)
+          .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
+          .catch((error) => sendResponse({ ok: false, reason: error?.message || String(error) }));
 
-        const abortCapture = () => {
-          requestTabMessage(activeTabId, { type: "FULLPAGE_STITCH_ABORT" });
-        };
-
-        withTimeout(
-          captureFullPage(activeTabId, { format: message.format }),
-          45000,
-          abortCapture,
-        )
-          .then((result) => safeRespond(result))
-          .catch((error) => {
-            const errorCode = error?.message || "CAPTURE_FAILED";
-            const userMessage =
-              errorCode === "CAPTURE_TIMEOUT"
-                ? "Chụp ảnh bị timeout. Hãy thử lại hoặc cuộn ít nội dung hơn."
-                : errorCode === "CAPTURE_NOT_AVAILABLE"
-                  ? "Trang hiện tại không cho phép content script chạy (ví dụ Chrome Web Store hoặc trang nội bộ)."
-                  : errorCode === "NOT_TOP_FRAME"
-                    ? "Không lấy được top frame của trang để bắt đầu ghép ảnh. Hãy tải lại trang rồi thử lại."
-                    : errorCode.includes(
-                          "MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND",
-                        )
-                      ? "Chrome đang giới hạn tốc độ chụp. Hãy thử lại sau 1-2 giây."
-                      : errorCode;
-
-            safeRespond({
-              success: false,
-              error: userMessage,
-            });
-          });
+        return true;
       }
-      return true;
 
     // Content script báo cáo đã ẩn ads trong DOM
     case "REPORT_BLOCKED":
@@ -520,18 +325,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
   }
-});
-
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "toggle-ai-sidebar") return;
-
-  const tabs = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-
-  const tab = tabs?.[0];
-  if (!tab?.id) return;
-
-  chrome.tabs.sendMessage(tab.id, { type: "AI_TOGGLE_SIDEBAR" });
 });
