@@ -5,7 +5,7 @@ window.CaptureAPI = (function() {
         MAX_SECONDARY_DIMENSION = 4000 * 2,
         MAX_AREA = MAX_PRIMARY_DIMENSION * MAX_SECONDARY_DIMENSION;
 
-    var MIN_CAPTURE_INTERVAL_MS = 450,
+    var MIN_CAPTURE_INTERVAL_MS = 300,
         lastCaptureAt = 0;
 
 
@@ -38,6 +38,12 @@ window.CaptureAPI = (function() {
 
     function initiateCapture(tab, callback) {
         chrome.tabs.sendMessage(tab.id, {msg: 'scrollPage'}, function() {
+            if (chrome.runtime.lastError) {
+                console.warn('Capture handshake failed:', chrome.runtime.lastError.message);
+                callback();
+                return;
+            }
+
             // We're done taking snapshots of all parts of the window. Display
             // the resulting full screenshot images in a new browser tab.
             callback();
@@ -73,12 +79,12 @@ window.CaptureAPI = (function() {
                         // given device mode emulation or zooming, we may end up with
                         // a different sized image than expected, so let's adjust to
                         // match it!
-                        if (data.windowWidth !== image.width) {
+                        if (data.windowWidth && data.windowWidth !== image.width) {
                             var scale = image.width / data.windowWidth;
-                            data.x *= scale;
-                            data.y *= scale;
-                            data.totalWidth *= scale;
-                            data.totalHeight *= scale;
+                            data.x = Math.round(data.x * scale);
+                            data.y = Math.round(data.y * scale);
+                            data.totalWidth = Math.round(data.totalWidth * scale);
+                            data.totalHeight = Math.round(data.totalHeight * scale);
                         }
 
                         // lazy initialization of screenshot canvases (since we need to wait
@@ -250,7 +256,7 @@ window.CaptureAPI = (function() {
     function captureToBlobs(tab, callback, errback, progress, splitnotifier) {
         var loaded = false,
             screenshots = [],
-            timeout = 3000,
+            timeout = 8000,
             timedOut = false,
             noop = function() {};
         var listener;

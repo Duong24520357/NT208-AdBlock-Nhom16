@@ -1,7 +1,54 @@
 
-var CAPTURE_DELAY = 600;
+var CAPTURE_MIN_DELAY = 120;
+var CAPTURE_MAX_DELAY = 1200;
+
+function isScrollableNode(node) {
+    if (!node || node === document.body || node === document.documentElement) {
+        return !!node;
+    }
+
+    try {
+        var style = window.getComputedStyle(node);
+        var overflowY = style.overflowY || style.overflow;
+        var overflowX = style.overflowX || style.overflow;
+        return ((overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') && node.scrollHeight > node.clientHeight + 1) ||
+               ((overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay') && node.scrollWidth > node.clientWidth + 1);
+    } catch (e) {
+        return false;
+    }
+}
+
+function findScrollableAncestor(node) {
+    while (node && node !== document.body && node !== document.documentElement) {
+        if (isScrollableNode(node)) {
+            return node;
+        }
+        node = node.parentElement;
+    }
+
+    return null;
+}
 
 function getScrollRoot() {
+    var centerNode = null;
+    try {
+        centerNode = document.elementFromPoint(
+            Math.max(0, Math.floor(window.innerWidth / 2)),
+            Math.max(0, Math.floor(window.innerHeight / 2))
+        );
+    } catch (e) {}
+
+    var activeNode = document.activeElement;
+    var centerRoot = findScrollableAncestor(centerNode);
+    if (centerRoot) {
+        return centerRoot;
+    }
+
+    var activeRoot = findScrollableAncestor(activeNode);
+    if (activeRoot) {
+        return activeRoot;
+    }
+
     var candidates = [
         document.scrollingElement,
         document.documentElement,
@@ -76,7 +123,165 @@ function scrollToPosition(root, x, y) {
     }
 }
 
+function collectCaptureState() {
+    var hiddenNodes = [];
+    var pausedMedia = [];
+    var styleEl = document.createElement('style');
+
+    styleEl.setAttribute('data-capture-helper', 'true');
+    styleEl.textContent = [
+        '* {',
+        '  animation-play-state: paused !important;',
+        '  transition-property: none !important;',
+        '  transition-duration: 0s !important;',
+        '}',
+        'video, audio {',
+        '  animation: none !important;',
+        '}'
+    ].join('\n');
+
+    (document.head || document.documentElement || document.body).appendChild(styleEl);
+
+    Array.prototype.slice.call(document.querySelectorAll('*')).forEach(function(node) {
+        try {
+            var position = window.getComputedStyle(node).position;
+            if (position === 'fixed' || position === 'sticky') {
+                hiddenNodes.push({
+                    node: node,
+                    visibility: node.style.visibility,
+                    pointerEvents: node.style.pointerEvents
+                });
+                node.style.visibility = 'hidden';
+                node.style.pointerEvents = 'none';
+            }
+        } catch (e) {}
+    });
+
+    Array.prototype.slice.call(document.querySelectorAll('video, audio')).forEach(function(media) {
+        try {
+            if (!media.paused && !media.ended) {
+                pausedMedia.push(media);
+                media.pause();
+            }
+        } catch (e) {}
+    });
+
+    return {
+        styleEl: styleEl,
+        hiddenNodes: hiddenNodes,
+        pausedMedia: pausedMedia
+    };
+}
+
+function restoreCaptureState(state) {
+    if (!state) {
+        return;
+    }
+
+    if (state.styleEl && state.styleEl.parentNode) {
+        state.styleEl.parentNode.removeChild(state.styleEl);
+    }
+
+    (state.hiddenNodes || []).forEach(function(entry) {
+        try {
+            entry.node.style.visibility = entry.visibility;
+            entry.node.style.pointerEvents = entry.pointerEvents;
+        } catch (e) {}
+    });
+
+    (state.pausedMedia || []).forEach(function(media) {
+        try {
+            if (media.play) {
+                media.play();
+            }
+        } catch (e) {}
+    });
+}
+
+function getPendingMediaCount() {
+    var pending = 0;
+
+    Array.prototype.slice.call(document.images || []).forEach(function(image) {
+        if (!image.complete) {
+            pending++;
+        }
+    });
+
+    Array.prototype.slice.call(document.querySelectorAll('video, audio')).forEach(function(media) {
+        if (!media.paused && !media.ended) {
+            pending++;
+        }
+    });
+
+    return pending;
+}
+
+function waitForCaptureSettled(scrollRoot, callback) {
+    var startedAt = Date.now();
+    var lastSignature = null;
+    var stableFrames = 0;
+
+    function sample() {
+        var scroll = readScroll(scrollRoot);
+        var signature = [
+            scroll.x,
+            scroll.y,
+            document.documentElement.scrollHeight,
+            document.documentElement.scrollWidth,
+            scrollRoot ? scrollRoot.scrollHeight : 0,
+            scrollRoot ? scrollRoot.scrollWidth : 0,
+            getPendingMediaCount(),
+            document.readyState
+        ].join('|');
+
+        if (signature === lastSignature) {
+            stableFrames++;
+        } else {
+            stableFrames = 0;
+            lastSignature = signature;
+        }
+
+        var elapsed = Date.now() - startedAt;
+        if (elapsed >= CAPTURE_MIN_DELAY && stableFrames >= 2) {
+            callback();
+            return;
+        }
+
+        if (elapsed >= CAPTURE_MAX_DELAY) {
+            callback();
+            return;
+        }
+
+        window.requestAnimationFrame(sample);
+    }
+
+    window.requestAnimationFrame(sample);
+}
+
+function warmupScrollPass(scrollRoot, positions, callback) {
+    var index = 0;
+    var settleDelay = Math.max(80, Math.min(150, CAPTURE_MIN_DELAY));
+
+    function step() {
+        if (index >= positions.length) {
+            scrollToPosition(scrollRoot, 0, 0);
+            window.setTimeout(callback, settleDelay);
+            return;
+        }
+
+        scrollToPosition(scrollRoot, 0, positions[index]);
+        index++;
+        window.setTimeout(step, settleDelay);
+    }
+
+    step();
+}
+
 function onMessage(data, sender, callback) {
+    if (!data || typeof data.msg === 'undefined') {
+        return;
+    }
+
     if (data.msg === 'scrollPage') {
         getPositions(callback);
         return true;
@@ -102,7 +307,8 @@ function getPositions(callback) {
         scrollRoot = getScrollRoot(),
         originalBodyOverflowYStyle = body ? body.style.overflowY : '',
         originalScroll = readScroll(scrollRoot),
-        originalOverflowStyle = document.documentElement.style.overflow;
+        originalOverflowStyle = document.documentElement.style.overflow,
+        captureState = null;
 
     // try to make pages with bad scrolling work, e.g., ones with
     // `body { overflow-y: scroll; }` can break `window.scrollTo`
@@ -139,7 +345,7 @@ function getPositions(callback) {
         arrangements = [],
         // pad the vertical scrolling to try to deal with
         // sticky headers, 250 is an arbitrary size
-        scrollPad = 200,
+        scrollPad = Math.max(80, Math.min(120, Math.floor(windowHeight * 0.1))),
         yDelta = windowHeight - (windowHeight > scrollPad ? scrollPad : 0),
         xDelta = windowWidth,
         yPos = fullHeight - windowHeight,
@@ -181,6 +387,13 @@ function getPositions(callback) {
         arrangements.push([0, 0]);
     }
 
+    var warmupPositions = [];
+    arrangements.forEach(function(pos) {
+        if (!warmupPositions.length || warmupPositions[warmupPositions.length - 1] !== pos[1]) {
+            warmupPositions.push(pos[1]);
+        }
+    });
+
     /** */
     console.log('fullHeight', fullHeight, 'fullWidth', fullWidth);
     console.log('windowWidth', windowWidth, 'windowHeight', windowHeight);
@@ -198,53 +411,65 @@ function getPositions(callback) {
             body.style.overflowY = originalBodyOverflowYStyle;
         }
         scrollToPosition(scrollRoot, originalScroll.x, originalScroll.y);
+        if (captureState) {
+            restoreCaptureState(captureState);
+            captureState = null;
+        }
     }
 
-    (function processArrangements() {
-        if (!arrangements.length) {
-            cleanUp();
-            if (callback) {
-                callback();
-            }
-            return;
-        }
+    warmupScrollPass(scrollRoot, warmupPositions, function() {
+        captureState = collectCaptureState();
 
-        var next = arrangements.shift(),
-            x = next[0], y = next[1];
-
-        scrollToPosition(scrollRoot, x, y);
-
-        var data = {
-            msg: 'capture',
-            x: readScroll(scrollRoot).x,
-            y: readScroll(scrollRoot).y,
-            complete: (numArrangements-arrangements.length)/numArrangements,
-            windowWidth: windowWidth,
-            totalWidth: fullWidth,
-            totalHeight: fullHeight,
-            devicePixelRatio: window.devicePixelRatio
-        };
-
-        // console.log('>> DATA', JSON.stringify(data, null, 4));
-
-        // Need to wait for things to settle
-        window.setTimeout(function() {
-            // In case the below callback never returns, cleanup
-            var cleanUpTimeout = window.setTimeout(cleanUp, 6000);
-
-            chrome.runtime.sendMessage(data, function(captured) {
-                window.clearTimeout(cleanUpTimeout);
-
-                if (captured) {
-                    // Move on to capture next arrangement.
-                    processArrangements();
-                } else {
-                    // If there's an error in popup.js, the response value can be
-                    // undefined, so cleanup
-                    cleanUp();
+        (function processArrangements() {
+            if (!arrangements.length) {
+                cleanUp();
+                if (callback) {
+                    callback();
                 }
-            });
+                return;
+            }
 
-        }, CAPTURE_DELAY);
-    })();
+            var next = arrangements.shift(),
+                x = next[0], y = next[1];
+
+            scrollToPosition(scrollRoot, x, y);
+
+            var data = {
+                msg: 'capture',
+                x: readScroll(scrollRoot).x,
+                y: readScroll(scrollRoot).y,
+                complete: (numArrangements-arrangements.length)/numArrangements,
+                windowWidth: windowWidth,
+                totalWidth: fullWidth,
+                totalHeight: fullHeight,
+                devicePixelRatio: window.devicePixelRatio
+            };
+
+            // console.log('>> DATA', JSON.stringify(data, null, 4));
+
+            waitForCaptureSettled(scrollRoot, function() {
+                // In case the below callback never returns, cleanup
+                var cleanUpTimeout = window.setTimeout(cleanUp, 6000);
+
+                chrome.runtime.sendMessage(data, function(captured) {
+                    window.clearTimeout(cleanUpTimeout);
+
+                    if (chrome.runtime.lastError) {
+                        cleanUp();
+                        return;
+                    }
+
+                    if (captured) {
+                        // Move on to capture next arrangement.
+                        processArrangements();
+                    } else {
+                        // If there's an error in popup.js, the response value can be
+                        // undefined, so cleanup
+                        cleanUp();
+                    }
+                });
+            });
+        })();
+    });
+
 }
