@@ -34,6 +34,7 @@
                 "blocking/study-ui.js",
                 "blocking/element-picker.js",
                 "blocking/dom-observer.js",
+                "blocking/pip-manager.js",
                 "studocu/update-inter.js",
                 "studocu/viewdocs.js",
                 "studocu/remove-banner.js",

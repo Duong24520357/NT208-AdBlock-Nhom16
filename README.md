@@ -14,6 +14,17 @@ This workspace now includes a client-only AI sidebar that loads from OpenRouter.
 - Selection actions: Ask AI, Summarize, Translate, Rewrite, Explain code
 - Draggable width, dark/light mode, prompt templates
 
+## Auto PiP
+
+The extension now also supports automatic Picture-in-Picture for playing videos.
+
+- Enable or disable Auto PiP from the popup
+- Limit Auto PiP to selected domains from the popup
+- Auto PiP now reacts on tab switches and visibility changes
+- Video selection prefers the best matching player, including iframe-based players
+- Use the "Bật PiP tab này" button to trigger PiP immediately on the current tab
+- The feature follows the same browser auto-PiP requirement as Chrome's built-in behavior
+
 ### Build the sidebar UI
 
 The sidebar UI is a React + Vite + Tailwind app under `sidebar/`.
