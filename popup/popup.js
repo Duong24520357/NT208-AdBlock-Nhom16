@@ -3,6 +3,10 @@
 // =============================================
 const toggleSwitch = document.getElementById("toggle-switch");
 const toggleLabel = document.getElementById("toggle-label");
+const pipToggleSwitch = document.getElementById("pip-toggle-switch");
+const pipToggleLabel = document.getElementById("pip-toggle-label");
+const pipDomainLabel = document.getElementById("pip-domain-label");
+const pipDomainBtn = document.getElementById("pip-domain-btn");
 // const whitelistBtn = document.getElementById("whitelist-btn");
 const pickerBtn = document.getElementById("picker-btn");
 const tabBlockedCount = document.getElementById("tab-blocked-count");
@@ -10,6 +14,7 @@ const totalBlockedCount = document.getElementById("total-blocked-count");
 const hostnameLabel = document.getElementById("hostname-label");
 const statusDot = document.getElementById("status-dot");
 const blockSiteBtn = document.getElementById("blocksite-btn");
+const pipNowBtn = document.getElementById("pip-now-btn");
 const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
@@ -328,6 +333,28 @@ function renderUI(state) {
     statusDot.style.background = "#999999";
   }
 
+  if (pipToggleSwitch) {
+    const pipEnabled = state.pipEnabled !== false;
+    pipToggleSwitch.checked = pipEnabled;
+    if (pipToggleLabel) {
+      pipToggleLabel.textContent = pipEnabled ? "Đang bật" : "Đang tắt";
+      pipToggleLabel.style.color = pipEnabled ? "#2ecc71" : "#999999";
+    }
+  }
+
+  if (pipDomainLabel) {
+    const hostname = state.hostname || "";
+    const allowList = Array.isArray(state.pipAllowedDomains)
+      ? state.pipAllowedDomains
+      : [];
+    pipDomainLabel.textContent =
+      allowList.length === 0
+        ? "PiP: toàn bộ trang"
+        : state.pipDomainAllowed
+          ? `PiP: cho phép trên ${hostname || "trang này"}`
+          : `PiP: không cho phép trên ${hostname || "trang này"}`;
+  }
+
   // --- Số ads bị chặn ---
   tabBlockedCount.textContent = state.tabBlocked || 0;
   totalBlockedCount.textContent = state.totalBlocked || 0;
@@ -362,6 +389,23 @@ function renderUI(state) {
   // --- Nút Element Picker ---
   pickerBtn.disabled = !state.enabled || state.whitelisted;
   pickerBtn.style.opacity = pickerBtn.disabled ? "0.5" : "1";
+
+  if (pipNowBtn) {
+    pipNowBtn.disabled = !state.enabled || state.pipEnabled === false;
+    pipNowBtn.style.opacity = pipNowBtn.disabled ? "0.5" : "1";
+  }
+
+  if (pipDomainBtn) {
+    const allowList = Array.isArray(state.pipAllowedDomains)
+      ? state.pipAllowedDomains
+      : [];
+    pipDomainBtn.disabled = !state.enabled || !state.hostname;
+    pipDomainBtn.textContent =
+      allowList.length === 0 || state.pipDomainAllowed === true
+        ? "Chỉ cho phép PiP trang này"
+        : "Bỏ giới hạn PiP trang này";
+    pipDomainBtn.style.opacity = pipDomainBtn.disabled ? "0.5" : "1";
+  }
 
   // --- Nút chặn trang (học tập) ---
   if (!state.enabled) {
@@ -587,6 +631,56 @@ toggleSwitch.addEventListener("change", async () => {
   }
 });
 
+if (pipToggleSwitch) {
+  pipToggleSwitch.addEventListener("change", async () => {
+    try {
+      const pipEnabled = pipToggleSwitch.checked;
+
+      renderUI({ ...currentState, pipEnabled });
+
+      await sendRuntimeMessage({
+        type: "TOGGLE_PIP_ENABLED",
+        enabled: pipEnabled,
+      });
+    } catch (error) {
+      console.error("[Popup] Lỗi toggle PiP:", error);
+      renderUI(currentState);
+    }
+  });
+}
+
+if (pipDomainBtn) {
+  pipDomainBtn.addEventListener("click", async () => {
+    try {
+      if (!currentTab) return;
+      const hostname = normalizeDomain(currentState?.hostname || currentTab.url);
+      if (!hostname) return;
+
+      const allowList = Array.isArray(currentState?.pipAllowedDomains)
+        ? currentState.pipAllowedDomains
+        : [];
+      const allowCurrent = currentState?.pipDomainAllowed === true;
+      const nextAllowed = !(allowList.length > 0 && allowCurrent);
+
+      renderUI({
+        ...currentState,
+        pipDomainAllowed: nextAllowed,
+        pipAllowedDomains: nextAllowed
+          ? Array.from(new Set([...(allowList || []), hostname]))
+          : allowList.filter((domain) => domain !== hostname),
+      });
+
+      await sendRuntimeMessage({
+        type: "TOGGLE_PIP_ALLOWED_DOMAIN",
+        domain: hostname,
+      });
+    } catch (error) {
+      console.error("[Popup] Lỗi giới hạn PiP theo domain:", error);
+      renderUI(currentState);
+    }
+  });
+}
+
 // =============================================
 // BƯỚC 5: XỬ LÝ WHITELIST
 // =============================================
@@ -629,6 +723,20 @@ pickerBtn.addEventListener("click", async () => {
     console.error("[Popup] Lỗi element picker:", error);
   }
 });
+
+if (pipNowBtn) {
+  pipNowBtn.addEventListener("click", async () => {
+    try {
+      if (!currentTab) return;
+      window.close();
+      await sendTabMessage(currentTab.id, {
+        type: "PREPARE_AUTO_PIP",
+      });
+    } catch (error) {
+      console.error("[Popup] Lỗi bật PiP:", error);
+    }
+  });
+}
 
 // =============================================
 // BƯỚC 7: CẬP NHẬT SỐ ĐẾM REALTIME

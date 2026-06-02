@@ -406,5 +406,140 @@
       "regexFilter": "^https?://([a-z0-9-]+\\.)*vads\\.net\\.vn/(Ad|ad)(\\?|$)",
       "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
     }
+  },
+  {
+    "id": 50,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||adi.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 51,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||googletagservices.com^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","media"]
+    }
+  },
+  {
+    "id": 52,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||googletagmanager.com/gtag^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame"]
+    }
+  },
+  {
+    "id": 53,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||cdn.adnetwork.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 54,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||ads.vccorp.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 55,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||ad.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 56,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||tracking.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 57,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||ads.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 58,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||adx.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 59,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||cdn.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 60,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||static.admicro.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 61,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||admaker.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 62,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||adfast.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 63,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||adtima.vn^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
+  },
+  {
+    "id": 64,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "||adcolony.com^",
+      "resourceTypes": ["script","xmlhttprequest","sub_frame","image","media"]
+    }
   }
 ]

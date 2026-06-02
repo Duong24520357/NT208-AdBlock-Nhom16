@@ -2,6 +2,8 @@
 importScripts("phishing-alert/anti-phishing.js"); //ngăn phishing
 const defaultState = {
   enabled: true,
+  pipEnabled: true,
+  pipAllowedDomains: [],
   whitelist: [],
   blockedDomains: [],
   blockedPerTab: {},
@@ -9,6 +11,9 @@ const defaultState = {
 };
 
 let state = { ...defaultState };
+let lastActiveTabId = null;
+let lastActiveWindowId = null;
+let tempBlankTabId = null;
 
 // Hàm áp dụng state và declarativceNetRequest
 async function applyState() {
@@ -36,11 +41,18 @@ async function saveState() {
   await chrome.storage.local.set({
     adblockState: {
       enabled: state.enabled,
+      pipEnabled: state.pipEnabled,
+      pipAllowedDomains: state.pipAllowedDomains,
       whitelist: state.whitelist,
       blockedDomains: state.blockedDomains,
       totalBlocked: state.totalBlocked,
     },
   });
+}
+
+function isHostnameInScope(hostname, domain) {
+  if (!hostname || !domain) return false;
+  return hostname === domain || hostname.endsWith(`.${domain}`);
 }
 
 function normalizeDomain(input) {
@@ -177,6 +189,79 @@ async function toggleEnabled(enabled) {
   updateBadge(null);
 }
 
+async function togglePipEnabled(enabled) {
+  state.pipEnabled = enabled;
+  await saveState();
+
+  chrome.tabs.query({}, (tabs) => {
+    (tabs || []).forEach((tab) => {
+      if (!tab || typeof tab.id !== "number") return;
+      if (!tab.url || !/^https?:\/\//.test(tab.url)) return;
+      chrome.tabs.sendMessage(
+        tab.id,
+        {
+          type: "PIP_SETTING_CHANGED",
+          enabled: state.pipEnabled,
+        },
+        () => void chrome.runtime.lastError,
+      );
+    });
+  });
+
+  return { success: true, pipEnabled: state.pipEnabled };
+}
+
+async function preparePipInTab(tabId) {
+  if (!tabId || state.pipEnabled === false) return { success: false, error: "PIP_DISABLED" };
+
+  chrome.tabs.sendMessage(
+    tabId,
+    {
+      type: "PREPARE_AUTO_PIP",
+    },
+    () => void chrome.runtime.lastError,
+  );
+
+  return { success: true };
+}
+
+async function togglePipAllowedDomain(domainInput) {
+  const hostname = normalizeDomain(domainInput);
+  if (!hostname) return { success: false, error: "INVALID_DOMAIN" };
+
+  state.pipAllowedDomains = Array.isArray(state.pipAllowedDomains)
+    ? state.pipAllowedDomains
+    : [];
+
+  const index = state.pipAllowedDomains.indexOf(hostname);
+  const nowAllowed = index === -1;
+  if (nowAllowed) {
+    state.pipAllowedDomains.push(hostname);
+  } else {
+    state.pipAllowedDomains.splice(index, 1);
+  }
+
+  await saveState();
+
+  chrome.tabs.query({}, (tabs) => {
+    (tabs || []).forEach((tab) => {
+      if (!tab || typeof tab.id !== "number") return;
+      if (!tab.url || !/^https?:\/\//.test(tab.url)) return;
+      chrome.tabs.sendMessage(
+        tab.id,
+        {
+          type: "PIP_SETTING_CHANGED",
+          enabled: state.pipEnabled,
+          allowedDomains: state.pipAllowedDomains,
+        },
+        () => void chrome.runtime.lastError,
+      );
+    });
+  });
+
+  return { success: true, hostname, allowed: nowAllowed };
+}
+
 // Hàm tạo lại whitelist rules dạng session
 async function updateWhitelistRules() {
   // Xóa toàn bộ session rules cũ
@@ -227,6 +312,47 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // Dọn dẹp khi tab bị đóng
 chrome.tabs.onRemoved.addListener((tabId) => {
   delete state.blockedPerTab[tabId];
+  if (tempBlankTabId === tabId) {
+    tempBlankTabId = null;
+  }
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  const previousTabId = lastActiveTabId;
+  lastActiveTabId = activeInfo?.tabId ?? null;
+
+  chrome.tabs.get(activeInfo?.tabId, (tab) => {
+    if (!chrome.runtime.lastError && tab && typeof tab.windowId === "number") {
+      lastActiveWindowId = tab.windowId;
+    }
+  });
+
+  if (activeInfo?.tabId) {
+    preparePipInTab(activeInfo.tabId);
+  }
+
+  if (!state.pipEnabled || !previousTabId || previousTabId === activeInfo?.tabId) {
+    return;
+  }
+  preparePipInTab(previousTabId);
+});
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  // Previously we created a temporary about:blank tab when focus was lost
+  // (WINDOW_ID_NONE) to force a tab switch for auto-PiP. That behavior caused
+  // the extension to open about:blank when the user clicked the extension UI
+  // (or other cases). To avoid unexpected redirects, do not create a blank
+  // tab on focus loss anymore.
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    return;
+  }
+
+  // If a temp blank tab exists (legacy fallback), remove it when focus returns.
+  if (tempBlankTabId != null) {
+    const tabId = tempBlankTabId;
+    tempBlankTabId = null;
+    chrome.tabs.remove(tabId, () => void chrome.runtime.lastError);
+  }
 });
 
 // Nhận message từ popup và content script
@@ -238,8 +364,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const resolveTab = (tab) => {
           const hostname = tab?.url ? new URL(tab.url).hostname : "";
           const blockedDomains = state.blockedDomains || [];
+          const pipAllowedDomains = Array.isArray(state.pipAllowedDomains)
+            ? state.pipAllowedDomains
+            : [];
+          const pipDomainAllowed =
+            pipAllowedDomains.length === 0 ||
+            pipAllowedDomains.some((domain) => isHostnameInScope(hostname, domain));
           sendResponse({
             enabled: state.enabled,
+            pipEnabled: state.pipEnabled !== false,
+            pipAllowedDomains,
+            pipDomainAllowed,
             totalBlocked: state.totalBlocked,
             tabBlocked: state.blockedPerTab[tab?.id] || 0,
             whitelisted: state.whitelist.includes(hostname),
@@ -266,6 +401,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true });
       });
       return true;
+
+    case "TOGGLE_PIP_ENABLED":
+      togglePipEnabled(message.enabled).then((result) => {
+        sendResponse(result);
+      });
+      return true;
+
+    case "TOGGLE_PIP_ALLOWED_DOMAIN":
+      togglePipAllowedDomain(message.domain).then((result) => {
+        sendResponse(result);
+      });
+      return true;
+
+    case "PREPARE_AUTO_PIP":
+      {
+        const targetTabId = message.tabId || sender.tab?.id;
+        if (!targetTabId) {
+          sendResponse({ success: false, error: "NO_TAB" });
+          return false;
+        }
+
+        preparePipInTab(targetTabId).then((result) => {
+          sendResponse(result);
+        });
+
+        return true;
+      }
 
     // Popup thêm/xóa domain khỏi whitelist
     case "TOGGLE_WHITELIST":

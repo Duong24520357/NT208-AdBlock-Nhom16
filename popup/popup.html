@@ -29,6 +29,33 @@
         </label>
     </section>
 
+    <section class="toggle-section">
+        <div class="toggle-info">
+            <span class="toggle-title">Tự động PiP</span>
+            <span id="pip-toggle-label" class="toggle-label">Đang bật</span>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="pip-toggle-switch" checked />
+            <span class="slider"></span>
+        </label>
+    </section>
+
+    <section class="domain-section">
+        <svg class="domain-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+        <span id="pip-domain-label" class="hostname">PiP: toàn bộ trang</span>
+    </section>
+
+    <section class="actions-section">
+        <button id="pip-domain-btn" class="btn btn-secondary">
+            Chỉ cho phép PiP trang này
+        </button>
+    </section>
+
     <hr class="divider" />
 
     <section class="stats-section">
@@ -58,6 +85,9 @@
     <section class="actions-section">
         <button id="ai-sidebar-btn" class="btn btn-primary">
             Chat AI
+        </button>
+        <button id="pip-now-btn" class="btn btn-secondary">
+            Chuẩn bị PiP tab này
         </button>
         <!-- <button id="whitelist-btn" class="btn btn-danger">
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -138,7 +168,7 @@
         <span>NT208 - Nhóm 16</span>
     </footer>
 
-    <script src="../blocking/api-capture.js"></script>
+    <script src="../fullpage-capture/api-capture.js"></script>
     <script src="popup.js"></script>
 </body>
 
