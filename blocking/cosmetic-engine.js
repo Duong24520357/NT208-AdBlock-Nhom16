@@ -112,9 +112,30 @@
         });
     }
 
+    function matchesHostname(hostname, target) {
+        return hostname === target || hostname.endsWith(`.${target}`);
+    }
+
+    function getDomainSpecificSelectors() {
+        const hostname = window.location.hostname || "";
+        const rules = window.AdConstants?.DOMAIN_SPECIFIC_SELECTORS || [];
+
+        return rules.flatMap((rule) => {
+            const hostnames = rule.hostnames || [];
+            if (!hostnames.some((target) => matchesHostname(hostname, target))) {
+                return [];
+            }
+
+            return rule.selectors || [];
+        });
+    }
+
     function hideAds() {
         let hiddenCount = 0;
-        const adSelectors = window.AdConstants?.adSelectors || [];
+        const adSelectors = [...new Set([
+            ...(window.AdConstants?.adSelectors || []),
+            ...getDomainSpecificSelectors()
+        ])];
 
         adSelectors.forEach(selector => {
             try {

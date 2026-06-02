@@ -1,12 +1,157 @@
+var CAPTURE_DELAY = 150;
 
+function onMessage(data, sender, callback) {
+    if (data.msg === 'scrollPage') {
+        getPositions(callback);
+        return true;
+    } else if (data.msg == 'logMessage') {
+        console.log('[POPUP LOG]', data.data);
+    } else {
+        console.error('Unknown message received from background: ' + data.msg);
+    }
+}
+
+if (!window.hasScreenCapturePage) {
+    window.hasScreenCapturePage = true;
+    chrome.runtime.onMessage.addListener(onMessage);
+}
+
+function max(nums) {
+    return Math.max.apply(Math, nums.filter(function(x) { return x; }));
+}
+
+function getPositions(callback) {
+
+    var body = document.body,
+        originalBodyOverflowYStyle = body ? body.style.overflowY : '',
+        originalX = window.scrollX,
+        originalY = window.scrollY,
+        originalOverflowStyle = document.documentElement.style.overflow;
+
+    // try to make pages with bad scrolling work, e.g., ones with
+    // `body { overflow-y: scroll; }` can break `window.scrollTo`
+    if (body) {
+        body.style.overflowY = 'visible';
+    }
+
+    var widths = [
+            document.documentElement.clientWidth,
+            body ? body.scrollWidth : 0,
+            document.documentElement.scrollWidth,
+            body ? body.offsetWidth : 0,
+            document.documentElement.offsetWidth
+        ],
+        heights = [
+            document.documentElement.clientHeight,
+            body ? body.scrollHeight : 0,
+            document.documentElement.scrollHeight,
+            body ? body.offsetHeight : 0,
+            document.documentElement.offsetHeight
+        ],
+        fullWidth = max(widths),
+        fullHeight = max(heights),
+        windowWidth = window.innerWidth,
+        windowHeight = window.innerHeight,
+        arrangements = [],
+        // pad the vertical scrolling to try to deal with
+        // sticky headers, 250 is an arbitrary size
+        scrollPad = 200,
+        yDelta = windowHeight - (windowHeight > scrollPad ? scrollPad : 0),
+        xDelta = windowWidth,
+        yPos = fullHeight - windowHeight,
+        xPos,
+        numArrangements;
+
+    // During zooming, there can be weird off-by-1 types of things...
+    if (fullWidth <= xDelta + 1) {
+        fullWidth = xDelta;
+    }
+
+    // Disable all scrollbars. We'll restore the scrollbar state when we're done
+    // taking the screenshots.
+    document.documentElement.style.overflow = 'hidden';
+
+    while (yPos > -yDelta) {
+        xPos = 0;
+        while (xPos < fullWidth) {
+            arrangements.push([xPos, yPos]);
+            xPos += xDelta;
+        }
+        yPos -= yDelta;
+    }
+
+    /** */
+    console.log('fullHeight', fullHeight, 'fullWidth', fullWidth);
+    console.log('windowWidth', windowWidth, 'windowHeight', windowHeight);
+    console.log('xDelta', xDelta, 'yDelta', yDelta);
+    var arText = [];
+    arrangements.forEach(function(x) { arText.push('['+x.join(',')+']'); });
+    console.log('arrangements', arText.join(', '));
+    /**/
+
+    numArrangements = arrangements.length;
+
+    function cleanUp() {
+        document.documentElement.style.overflow = originalOverflowStyle;
+        if (body) {
+            body.style.overflowY = originalBodyOverflowYStyle;
+        }
+        window.scrollTo(originalX, originalY);
+    }
+
+    (function processArrangements() {
+        if (!arrangements.length) {
+            cleanUp();
+            if (callback) {
+                callback();
+            }
+            return;
+        }
+
+        var next = arrangements.shift(),
+            x = next[0], y = next[1];
+
+        window.scrollTo(x, y);
+
+        var data = {
+            msg: 'capture',
+            x: window.scrollX,
+            y: window.scrollY,
+            complete: (numArrangements-arrangements.length)/numArrangements,
+            windowWidth: windowWidth,
+            totalWidth: fullWidth,
+            totalHeight: fullHeight,
+            devicePixelRatio: window.devicePixelRatio
+        };
+
+        // console.log('>> DATA', JSON.stringify(data, null, 4));
+
+        // Need to wait for things to settle
+        window.setTimeout(function() {
+            // In case the below callback never returns, cleanup
+            var cleanUpTimeout = window.setTimeout(cleanUp, 1250);
+
+            chrome.runtime.sendMessage(data, function(captured) {
+                window.clearTimeout(cleanUpTimeout);
+
+                if (captured) {
+                    // Move on to capture next arrangement.
+                    processArrangements();
+                } else {
+                    // If there's an error in popup.js, the response value can be
+                    // undefined, so cleanup
+                    cleanUp();
+                }
+            });
+
+        }, CAPTURE_DELAY);
+    })();
+}
 window.CaptureAPI = (function() {
 
     var MAX_PRIMARY_DIMENSION = 15000 * 2,
         MAX_SECONDARY_DIMENSION = 4000 * 2,
         MAX_AREA = MAX_PRIMARY_DIMENSION * MAX_SECONDARY_DIMENSION;
-
-    var MIN_CAPTURE_INTERVAL_MS = 300,
-        lastCaptureAt = 0;
 
 
     //
@@ -38,12 +183,6 @@ window.CaptureAPI = (function() {
 
     function initiateCapture(tab, callback) {
         chrome.tabs.sendMessage(tab.id, {msg: 'scrollPage'}, function() {
-            if (chrome.runtime.lastError) {
-                console.warn('Capture handshake failed:', chrome.runtime.lastError.message);
-                callback();
-                return;
-            }
-
             // We're done taking snapshots of all parts of the window. Display
             // the resulting full screenshot images in a new browser tab.
             callback();
@@ -51,27 +190,10 @@ window.CaptureAPI = (function() {
     }
 
 
-    function capture(data, screenshots, sendResponse, splitnotifier, attemptsLeft) {
-        attemptsLeft = typeof attemptsLeft === 'number' ? attemptsLeft : 3;
-
-        var elapsed = Date.now() - lastCaptureAt;
-        var waitTime = Math.max(0, MIN_CAPTURE_INTERVAL_MS - elapsed);
-
-        window.setTimeout(function() {
-            chrome.tabs.captureVisibleTab(
-                null, {format: 'png'}, function(dataURI) {
-                    var captureError = chrome.runtime.lastError;
-                    if (captureError || !dataURI) {
-                        if (attemptsLeft > 0) {
-                            capture(data, screenshots, sendResponse, splitnotifier, attemptsLeft - 1);
-                            return;
-                        }
-                        sendResponse(false);
-                        return;
-                    }
-
-                    lastCaptureAt = Date.now();
-
+    function capture(data, screenshots, sendResponse, splitnotifier) {
+        chrome.tabs.captureVisibleTab(
+            null, {format: 'png'}, function(dataURI) {
+                if (dataURI) {
                     var image = new Image();
                     image.onload = function() {
                         data.image = {width: image.width, height: image.height};
@@ -79,12 +201,12 @@ window.CaptureAPI = (function() {
                         // given device mode emulation or zooming, we may end up with
                         // a different sized image than expected, so let's adjust to
                         // match it!
-                        if (data.windowWidth && data.windowWidth !== image.width) {
+                        if (data.windowWidth !== image.width) {
                             var scale = image.width / data.windowWidth;
-                            data.x = Math.round(data.x * scale);
-                            data.y = Math.round(data.y * scale);
-                            data.totalWidth = Math.round(data.totalWidth * scale);
-                            data.totalHeight = Math.round(data.totalHeight * scale);
+                            data.x *= scale;
+                            data.y *= scale;
+                            data.totalWidth *= scale;
+                            data.totalHeight *= scale;
                         }
 
                         // lazy initialization of screenshot canvases (since we need to wait
@@ -94,8 +216,11 @@ window.CaptureAPI = (function() {
                                 screenshots,
                                 _initScreenshots(data.totalWidth, data.totalHeight)
                             );
-                            if (screenshots.length > 1 && splitnotifier) {
-                                splitnotifier();
+                            if (screenshots.length > 1) {
+                                if (splitnotifier) {
+                                    splitnotifier();
+                                }
+                                $('screenshot-count').innerText = screenshots.length;
                             }
                         }
 
@@ -114,13 +239,9 @@ window.CaptureAPI = (function() {
                         // indicate success)
                         sendResponse(JSON.stringify(data, null, 4) || true);
                     };
-                    image.onerror = function() {
-                        sendResponse(false);
-                    };
                     image.src = dataURI;
                 }
-            );
-        }, waitTime);
+            });
     }
 
 
@@ -256,30 +377,20 @@ window.CaptureAPI = (function() {
     function captureToBlobs(tab, callback, errback, progress, splitnotifier) {
         var loaded = false,
             screenshots = [],
-            timeout = 8000,
+            timeout = 3000,
             timedOut = false,
             noop = function() {};
-        var listener;
-
-        function cleanupListener() {
-            if (listener) {
-                chrome.runtime.onMessage.removeListener(listener);
-                listener = null;
-            }
-        }
 
         callback = callback || noop;
         errback = errback || noop;
         progress = progress || noop;
 
         if (!isValidUrl(tab.url)) {
-            cleanupListener();
             errback('invalid url'); // TODO errors
-            return;
         }
 
         // TODO will this stack up if run multiple times? (I think it will get cleared?)
-        listener = function(request, sender, sendResponse) {
+        chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             if (request.msg === 'capture') {
                 progress(request.complete);
                 capture(request, screenshots, sendResponse, splitnotifier);
@@ -292,26 +403,12 @@ window.CaptureAPI = (function() {
                 return true;
             } else {
                 console.error('Unknown message received from content script: ' + request.msg);
-                cleanupListener();
                 errback('internal error');
                 return false;
             }
-        };
+        });
 
-        chrome.runtime.onMessage.addListener(listener);
-
-        chrome.scripting.executeScript(
-            {
-                target: {tabId: tab.id},
-                files: ['blocking/page.js']
-            },
-            function() {
-            if (chrome.runtime.lastError) {
-                cleanupListener();
-                errback(chrome.runtime.lastError.message || 'execute failed');
-                return;
-            }
-
+        chrome.tabs.executeScript(tab.id, {file: 'page.js'}, function() {
             if (timedOut) {
                 console.error('Timed out too early while waiting for ' +
                               'chrome.tabs.executeScript. Try increasing the timeout.');
@@ -320,17 +417,14 @@ window.CaptureAPI = (function() {
                 progress(0);
 
                 initiateCapture(tab, function() {
-                    cleanupListener();
                     callback(getBlobs(screenshots));
                 });
             }
-            }
-        );
+        });
 
         window.setTimeout(function() {
             if (!loaded) {
                 timedOut = true;
-                cleanupListener();
                 errback('execute timeout');
             }
         }, timeout);

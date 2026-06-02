@@ -39,7 +39,14 @@
         "div[data-testid='placementTracking']",
 
         // Quảng cáo dạng sticky/popup
+        "div[class*='popup-ads']",
         "div[class*='popup-ad']",
+        "div[id*='popup-ad']",
+        "div[class*='overlay-ads']",
+        "div[class*='modal-ads']",
+        "div[class*='sticky-ads']",
+        "div[class*='fixed-ads']",
+        "div[class*='sticky-banner']",
         "div[class*='sticky-ad']",
         "div[class*='floating-ad']",
         ".no-ads-under",
@@ -50,6 +57,23 @@
         "div[id*='ads-under']",
         "div[class*='under-player-ad']",
         "div[class*='under-video-ad']",
+
+        // Báo điện tử VN
+        ".adnzone_10053",
+        ".admLogoCpm13227",
+        ".admzone253",
+        "div[class*='ads-zone']",
+        "div[class*='banner-ads']",
+        "div[class*='box-adv']",
+        "div[class*='adv-wrapper']",
+        "div[class*='adsBanner']",
+        "div[class*='article-advertise']",
+        "div[class*='ads-wrapper']",
+        "div[class*='banner-wrapper']",
+        "div[class*='ads-container']",
+        "div[class*='ads-block']",
+        "div[class*='adbox']",
+        "div[class*='box-banner']",
 
         // Quảng cáo video
         "div[class*='sticky-video']",
@@ -139,6 +163,7 @@
         "yieldmo.com",
         "sharethrough.com",
         "triplelift.com",
+        "adi.admicro.vn",
         "vads.net.vn",
     ];
 
@@ -171,6 +196,12 @@
         "[id*='ad-video']",
         "[class*='under-player-ad']",
         "[class*='under-video-ad']",
+        "[class*='popup-ads']",
+        "[class*='overlay-ads']",
+        "[class*='modal-ads']",
+        "[class*='sticky-ads']",
+        "[class*='fixed-ads']",
+        "[class*='sticky-banner']",
         "[class*='outstream']",
         "[class*='preroll']",
         "[class*='midroll']",
@@ -183,145 +214,89 @@
         "[id*='no-ads-under']",
         "[class*='ads-under']",
         "[id*='ads-under']",
+        ".adnzone_10053",
+        ".admLogoCpm13227",
+        ".admzone253",
+        "[class*='ads-zone']",
+        "[class*='banner-ads']",
+        "[class*='box-adv']",
+        "[class*='adv-wrapper']",
+        "[class*='adsBanner']",
+        "[class*='article-advertise']",
+        "[class*='ads-wrapper']",
+        "[class*='banner-wrapper']",
+        "[class*='ads-container']",
+        "[class*='ads-block']",
+        "[class*='adbox']",
+        "[class*='box-banner']",
     ].join(", ");
 
-    window.AdConstants = {
-        adSelectors,
-        AD_DOMAINS,
-        STRICT_AD_WRAPPER_SELECTOR
-    };
-})();
-(() => {
-    const adSelectors = [
-        // Google Ads
-        "ins.adsbygoogle",
-        "ins[data-ad-client]",
-        "ins[data-ad-slot]",
-        "ins.adsbygoogle[data-ad-status='unfilled']",
-        "ins.adsbygoogle[data-ad-status='filled']",
-        "div[id^='google_ads']",
-        "div[id^='GoogleAds']",
-        "div[id*='google_ads']",
-        "div[id*='GoogleAds']",
-        "div[id*='div-gpt-ad']",
-        "div[class*='gpt-ad']",
-        "iframe[src*='googlesyndication']",
-        "iframe[src*='doubleclick']",
-        "iframe[src*='doubleclick.net']",
-        "iframe[src*='pubads.g.doubleclick']",
-
-        // Canvas
-        "canvas[id*='canvas']",
-        "canvas[class*='canvas']",
-        "[id*='box-landing'] canvas",
-        "[class*='box-landing'] canvas",
-        "[id*='landing-ad'] canvas",
-        "[class*='landing-ad'] canvas",
-        "canvas[data-ad-type]",
-        "canvas[data-ad-id]",
-        "div[class*='box-landing']",
-
-        // Iframe quảng cáo
-        "iframe[src*='ads']",
-        "iframe[src*='adservice']",
-        "iframe[id*='ad-']",
-        "iframe[src*='vads.net.vn']",
-
-        // Facebook Ads
-        "div[data-testid='placementTracking']",
-
-        // Quảng cáo dạng sticky/popup
-        "div[class*='popup-ad']",
-        "div[class*='sticky-ad']",
-        "div[class*='floating-ad']",
-        ".no-ads-under",
-        "[class*='no-ads-under']",
-        "[class*='adzone']",
-        "[id*='no-ads-under']",
-        "div[class*='ads-under']",
-        "div[id*='ads-under']",
-        "div[class*='under-player-ad']",
-        "div[class*='under-video-ad']",
-
-        // Data-attribute quảng cáo
-        "[data-ad-type]",
-        "[data-ad-id]",
-        "[data-adunit]",
-        "[data-ad-network]",
+    const DOMAIN_SPECIFIC_SELECTORS = [
+        {
+            hostnames: ["vnexpress.net"],
+            selectors: [
+                ".ads-zone",
+                ".banner-ads",
+                "[id^='div-gpt-ad']",
+                ".box-adv",
+                ".adv-wrapper",
+                ".adsBanner",
+                ".article-advertise",
+                "[class*='ads-']",
+                "[id*='ads-']",
+            ]
+        },
+        {
+            hostnames: ["dantri.com.vn"],
+            selectors: [
+                ".ads-wrapper",
+                "[id^='div-gpt-ad']",
+                ".banner-wrapper",
+                "[class*='dfp-']",
+                ".ads-container",
+                "[id*='advertisement']",
+            ]
+        },
+        {
+            hostnames: ["kenh14.vn"],
+            selectors: [
+                "[id^='div-gpt-ad']",
+                ".ads-block",
+                ".banner-ads",
+                "[class*='dfp']",
+                ".adbox",
+                "[data-google-query-id]",
+            ]
+        },
+        {
+            hostnames: ["soha.vn"],
+            selectors: [
+                "[id^='div-gpt-ad']",
+                ".box-banner",
+                "[class*='ads']",
+                ".banner-zone",
+            ]
+        },
+        {
+            hostnames: ["cafebiz.vn"],
+            selectors: [
+                "[id^='div-gpt-ad']",
+                "[class*='ads']",
+            ]
+        },
+        {
+            hostnames: ["cafef.vn"],
+            selectors: [
+                "[id^='div-gpt-ad']",
+                "[class*='ads-']",
+            ]
+        }
     ];
-
-    const AD_DOMAINS = [
-        "gliastudios.com",
-        "doubleclick.net",
-        "googlesyndication",
-        "imasdk.googleapis",
-        "2mdn.net",
-        "fwmrm.net",
-        "spotxchange.com",
-        "springserve.com",
-        "taboola.com",
-        "outbrain.com",
-        "adnxs.com",
-        "rubiconproject.com",
-        "openx.net",
-        "pubmatic.com",
-        "criteo.com",
-        "moatads.com",
-        "adsrvr.org",
-        "advertising.com",
-        "smartadserver.com",
-        "yieldmo.com",
-        "sharethrough.com",
-        "triplelift.com",
-        "vads.net.vn",
-    ];
-
-    const STRICT_AD_WRAPPER_SELECTOR = [
-        ".adsbygoogle",
-        "[data-ad-client]",
-        "[data-ad-slot]",
-        "[data-ad-type]",
-        "[data-ad-id]",
-        "[data-adunit]",
-        "[data-video-ad]",
-        "[data-ad-network]",
-        "[id^='google_ads']",
-        "[id^='GoogleAds']",
-        "[id*='div-gpt-ad']",
-        "[class*='gpt-ad']",
-        "[class*='banner-ad']",
-        "[class*='advertisement']",
-        "[class*='ad-container']",
-        "[class*='ad-wrapper']",
-        "[id*='ad-container']",
-        "[id*='ad-banner']",
-        "[class*='sponsor']",
-        "[id*='sponsor']",
-        "[class*='promo']",
-        "[id*='promo']",
-        "[class*='video-ad']",
-        "[class*='ad-video']",
-        "[id*='video-ad']",
-        "[id*='ad-video']",
-        "[class*='under-player-ad']",
-        "[class*='under-video-ad']",
-        "[class*='outstream']",
-        "[class*='preroll']",
-        "[class*='midroll']",
-        "[class*='postroll']",
-        "[class*='inread']",
-        "[class*='instream']",
-        "[id*='instream']",
-        ".no-ads-under",
-        "[class*='no-ads-under']",
-        "[id*='no-ads-under']",
-        "[class*='ads-under']",
-        "[id*='ads-under']",
-    ].join(", ");
 
     window.AdConstants = {
         adSelectors,
         AD_DOMAINS,
         STRICT_AD_WRAPPER_SELECTOR,
+        DOMAIN_SPECIFIC_SELECTORS
     };
 })();
