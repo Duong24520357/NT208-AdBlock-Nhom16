@@ -51,6 +51,26 @@
         '[data-test-selector*="premium-label"]',
     ];
 
+    // ========== Ad & AI Toolbar Selectors ==========
+    const AD_SELECTORS = [
+        '[class*="AdsContainer"]',
+        'r89-standalone',
+        '[id^="r89-"]',
+        '[id*="r89-"]',
+        'iframe[id^="google_ads_iframe"]',
+        'div[id^="google_ads_iframe"]',
+        '[id^="div-gpt-ad"]',
+        '[id*="gpt-ad"]',
+        '[id*="adagio"]',
+        '[class*="adagio"]',
+        '[class*="Advertisement"]',
+        '[class*="advertisement"]',
+    ];
+
+    const AI_TOOLBAR_SELECTORS = [
+        '[class*="AIToolbar"]',
+    ];
+
     // ========== Document Access Data (cached) ==========
     let _docAccessData = null;
 
@@ -235,6 +255,26 @@
         if (modal) modal.style.display = 'none';
     }
 
+    function removeAdsAndAI() {
+        AD_SELECTORS.forEach(selector => {
+            try {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                });
+            } catch(e) {}
+        });
+
+        AI_TOOLBAR_SELECTORS.forEach(selector => {
+            try {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                });
+            } catch(e) {}
+        });
+    }
+
     function unblurImages() {
         // Swap server-side blurred images for clear versions
         // Studocu serves pre-blurred images from /pages/blurred/pageN.webp
@@ -292,7 +332,8 @@
     }
 
     function removeBlur() {
-        // Remove blur from page wrapper elements (.pf) which may carry the filter
+        // Mirror the simpler StudocuHacks-style flow: normalize the page wrapper,
+        // then remove all blur-related wrappers and overlays.
         document.querySelectorAll('.pf').forEach(pf => {
             pf.style.filter = 'none';
             pf.style.webkitFilter = 'none';
@@ -301,6 +342,7 @@
             pf.style.pointerEvents = 'auto';
             pf.style.clipPath = 'none';
             pf.style.webkitClipPath = 'none';
+            pf.style.visibility = 'visible';
             pf.classList.add('nofilter');
             Array.from(pf.classList).forEach(cls => {
                 if (cls.includes('blurred') || cls.includes('Blurred')) {
@@ -310,7 +352,6 @@
         });
 
         document.querySelectorAll('.page-content').forEach(page => {
-            // Remove inline filter unconditionally
             page.style.filter = 'none';
             page.style.webkitFilter = 'none';
             page.style.opacity = '1';
@@ -322,37 +363,14 @@
             page.style.maskImage = 'none';
             page.style.webkitMaskImage = 'none';
             page.style.color = '';
-
-            // Add nofilter class for CSS override
             page.classList.add('nofilter');
 
-            // Remove any blurred-related CSS module classes
             Array.from(page.classList).forEach(cls => {
                 if (cls.includes('blurred') || cls.includes('Blurred')) {
                     page.classList.remove(cls);
                 }
             });
 
-            // Also remove blur from ancestor elements up to #page-container
-            let ancestor = page.parentElement;
-            let depth = 0;
-            while (ancestor && ancestor.id !== 'page-container' && ancestor !== document.body && depth < 10) {
-                const cs = getComputedStyle(ancestor);
-                if (cs.filter !== 'none' || cs.opacity !== '1') {
-                    ancestor.style.filter = 'none';
-                    ancestor.style.webkitFilter = 'none';
-                    ancestor.style.opacity = '1';
-                }
-                Array.from(ancestor.classList).forEach(cls => {
-                    if (cls.includes('blurred') || cls.includes('Blurred')) {
-                        ancestor.classList.remove(cls);
-                    }
-                });
-                ancestor = ancestor.parentElement;
-                depth++;
-            }
-
-            // Make blurred images fill the page container properly
             page.querySelectorAll('img').forEach(img => {
                 img.style.width = '100%';
                 img.style.height = 'auto';
@@ -360,25 +378,8 @@
                 img.style.filter = 'none';
                 img.style.visibility = 'visible';
             });
-
-            // Remove premium clarification banner siblings
-            if (page.parentNode) {
-                Array.from(page.parentNode.children).forEach(sibling => {
-                    if (sibling !== page && sibling.className) {
-                        const cn = typeof sibling.className === 'string' ? sibling.className : '';
-                        if (cn.includes('PremiumPageClarification') ||
-                            cn.includes('blurred') ||
-                            cn.includes('Blurred') ||
-                            cn.includes('premium-banner') ||
-                            cn.includes('BlurredPage')) {
-                            sibling.remove();
-                        }
-                    }
-                });
-            }
         });
 
-        // Remove blurred-image-wrapper class effects (Studocu uses this for blurred pages)
         document.querySelectorAll('[class*="blurred-image-wrapper"], [class*="BlurredImage"], [class*="blurred-page"]').forEach(el => {
             el.style.filter = 'none';
             el.style.opacity = '1';
@@ -395,13 +396,12 @@
             container.classList.remove('blurred-container');
         });
 
-        // Remove premium overlay divs (but NOT page content)
         document.querySelectorAll('#modal-overlay, [class*="PremiumOverlay"], [class*="premium-overlay"]').forEach(el => {
             el.style.display = 'none';
         });
 
-        // Swap blurred images for clear versions
         unblurImages();
+        removeAdsAndAI();
     }
 
     function removeStudocuDownloadButtons() {
@@ -597,10 +597,12 @@
     function runAll() {
         removeBanners();
         removeBlur();
+        triggerLazyLoadAndFixImages();
         removePremiumButton();
         removePremiumBadges();
         removeStudocuDownloadButtons();
         removeRecommendations();
+        removeAdsAndAI();
         updateLogos();
         addVersionButton();
         patchReactBlurState();
@@ -661,6 +663,7 @@
         if (hasNewBlurredContent) {
             // Run immediately for blurred content, then debounce the rest
             removeBlur();
+            triggerLazyLoadAndFixImages();
             patchReactBlurState();
         }
         debouncedCleanup();
@@ -683,6 +686,8 @@
         scrollDebounce = setTimeout(() => {
             scrollDebounce = null;
             removeBlur();
+            triggerLazyLoadAndFixImages();
+            removeAdsAndAI();
             patchReactBlurState();
         }, 100);
     };
@@ -713,6 +718,8 @@
     let periodicCount = 0;
     const periodicCheck = setInterval(() => {
         removeBlur();
+        triggerLazyLoadAndFixImages();
+        removeAdsAndAI();
         patchReactBlurState();
         periodicCount++;
         if (periodicCount >= 15) {
@@ -720,6 +727,8 @@
             // Switch to slower interval
             setInterval(() => {
                 removeBlur();
+                triggerLazyLoadAndFixImages();
+                removeAdsAndAI();
                 patchReactBlurState();
             }, 5000);
         }

@@ -12,12 +12,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: latest-extension-release
+  group: version-extension-release
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Build and publish latest release
+    name: Build and publish version release
     runs-on: ubuntu-latest
 
     steps:
@@ -49,8 +49,9 @@ jobs:
         shell: bash
         run: |
           VERSION="$(node -p "require('./manifest.json').version")"
+          TAG_NAME="v${VERSION}"
           SHORT_SHA="$(git rev-parse --short HEAD)"
-          ZIP_NAME="adblock-extension-latest.zip"
+          ZIP_NAME="adblock-extension-${TAG_NAME}.zip"
           STAGING_DIR="$(mktemp -d)"
           EXT_DIR="$STAGING_DIR/adblock-extension"
 
@@ -79,33 +80,37 @@ jobs:
           (cd "$STAGING_DIR" && zip -qr "$GITHUB_WORKSPACE/$ZIP_NAME" adblock-extension)
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Move latest tag to this commit
+      - name: Move version tag to this commit
+        env:
+          TAG_NAME: ${{ steps.package.outputs.tag_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f latest "$GITHUB_SHA"
-          git push --force origin refs/tags/latest
+          git tag -f "$TAG_NAME" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$TAG_NAME"
 
-      - name: Create or update latest release
+      - name: Create or update version release
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP_NAME: ${{ steps.package.outputs.zip_name }}
           VERSION: ${{ steps.package.outputs.version }}
+          TAG_NAME: ${{ steps.package.outputs.tag_name }}
           SHORT_SHA: ${{ steps.package.outputs.short_sha }}
         run: |
-          NOTES="Automatic extension build from commit ${GITHUB_SHA} (manifest v${VERSION}, ${SHORT_SHA}). Download ${ZIP_NAME}, extract it, then load the extracted adblock-extension folder in Chrome."
+          NOTES="Automatic extension build from commit ${GITHUB_SHA} (${TAG_NAME}, ${SHORT_SHA}). Download ${ZIP_NAME}, extract it, then load the extracted adblock-extension folder in Chrome."
 
-          if gh release view latest >/dev/null 2>&1; then
-            gh release edit latest \
-              --title "Latest AdBlock Extension" \
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" \
+              --title "AdBlock Extension ${TAG_NAME}" \
               --notes "$NOTES"
           else
-            gh release create latest \
-              --title "Latest AdBlock Extension" \
+            gh release create "$TAG_NAME" \
+              --title "AdBlock Extension ${TAG_NAME}" \
               --notes "$NOTES"
           fi
 
-          gh release upload latest "$ZIP_NAME" --clobber
+          gh release upload "$TAG_NAME" "$ZIP_NAME" --clobber
