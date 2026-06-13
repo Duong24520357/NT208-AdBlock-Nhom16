@@ -125,7 +125,7 @@ function delay(ms) {
 }
 
 let lastCaptureAt = 0;
-const CAPTURE_MIN_INTERVAL_MS = 650;
+const CAPTURE_MIN_INTERVAL_MS = 1100;
 
 async function captureVisibleTabWithThrottle(windowId, retries = 3) {
   const elapsed = Date.now() - lastCaptureAt;
@@ -461,7 +461,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       {
         // Content script requests the background to capture the visible viewport
         // We use sender.tab.windowId to call captureVisibleTabWithThrottle
-        const winId = sender.tab?.windowId;
+        const winId = message.windowId ?? sender.tab?.windowId ?? lastActiveWindowId;
         if (typeof winId === "undefined") {
           sendResponse({ ok: false, reason: "NO_WINDOW_ID" });
           return false;

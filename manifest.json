@@ -1,8 +1,11 @@
 {
     "name": "AdBlock",
-    "version": "1.0",
+    "version": "1.0.0",
     "description": "A simple ad blocker extension",
     "manifest_version": 3,
+    "icons": {
+        "48": "icons/icon48.png"
+    },
     "permissions": [
         "declarativeNetRequest",
         "declarativeNetRequestWithHostAccess",
@@ -63,6 +66,9 @@
         ]
     },
     "action": {
+        "default_icon": {
+            "48": "icons/icon48.png"
+        },
         "default_popup": "popup/popup.html",
         "default_title": "AdBlock Extension"
     },

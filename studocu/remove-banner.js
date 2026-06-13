@@ -40,10 +40,47 @@
         '[class*="premium-icon"]',
     ];
 
+    const AD_SELECTORS = [
+        '[class*="AdsContainer"]',
+        'r89-standalone',
+        '[id^="r89-"]',
+        '[id*="r89-"]',
+        'iframe[id^="google_ads_iframe"]',
+        'div[id^="google_ads_iframe"]',
+        '[id^="div-gpt-ad"]',
+        '[id*="gpt-ad"]',
+        '[id*="adagio"]',
+        '[class*="adagio"]',
+        '[class*="Advertisement"]',
+        '[class*="advertisement"]',
+    ];
+
+    const AI_TOOLBAR_SELECTORS = [
+        '[class*="AIToolbar"]',
+    ];
+
     function removeAll() {
         SELECTORS.forEach(selector => {
             try {
                 document.querySelectorAll(selector).forEach(el => el.remove());
+            } catch(e) {}
+        });
+
+        AD_SELECTORS.forEach(selector => {
+            try {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                });
+            } catch(e) {}
+        });
+
+        AI_TOOLBAR_SELECTORS.forEach(selector => {
+            try {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                });
             } catch(e) {}
         });
     }
