@@ -1,3 +1,46 @@
+// ==========================================
+// MODULE BẢO MẬT: MÃ HÓA AES-GCM (NATIVE)
+// ==========================================
+const CryptoModule = {
+    async getKey(password, salt) {
+        const enc = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]
+        );
+        return window.crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+            keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
+        );
+    },
+    async encrypt(text, password) {
+        const enc = new TextEncoder();
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const key = await this.getKey(password, salt);
+        const ciphertext = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv }, key, enc.encode(text)
+        );
+        const encryptedData = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+        encryptedData.set(salt, 0);
+        encryptedData.set(iv, salt.length);
+        encryptedData.set(new Uint8Array(ciphertext), salt.length + iv.length);
+        return btoa(String.fromCharCode(...encryptedData));
+    },
+    async decrypt(base64Data, password) {
+        const encryptedData = new Uint8Array(atob(base64Data).split('').map(c => c.charCodeAt(0)));
+        const salt = encryptedData.slice(0, 16);
+        const iv = encryptedData.slice(16, 28);
+        const data = encryptedData.slice(28);
+        const key = await this.getKey(password, salt);
+        try {
+            const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data);
+            return new TextDecoder().decode(decrypted);
+        } catch (e) {
+            throw new Error("Sai mật khẩu hoặc file bị hỏng!");
+        }
+    }
+};
+
 // =============================================
 // BƯỚC 1: LẤY CÁC DOM ELEMENTS
 // =============================================
