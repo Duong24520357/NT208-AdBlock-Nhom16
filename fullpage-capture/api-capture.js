@@ -41,8 +41,14 @@ window.CaptureAPI = (function() {
     }
 
     function capture(data, screenshots, sendResponse, splitnotifier) {
-        chrome.tabs.captureVisibleTab(
+       chrome.tabs.captureVisibleTab(
             null, {format: 'png'}, function(dataURI) {
+                // CHÈN THÊM CHỐT CHẶN NÀY ĐỂ BẮT LỖI
+                if (chrome.runtime.lastError || !dataURI) {
+                    console.error("Lỗi chụp ảnh:", chrome.runtime.lastError?.message);
+                    sendResponse(false); // Phải gửi false về để page.js không bị treo
+                    return;
+                }
                 if (dataURI) {
                     var image = new Image();
                     image.onload = function() {

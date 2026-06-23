@@ -131,15 +131,20 @@ function getPositions(callback) {
             // In case the below callback never returns, cleanup
             var cleanUpTimeout = window.setTimeout(cleanUp, 1250);
 
-            chrome.runtime.sendMessage(data, function(captured) {
+        chrome.runtime.sendMessage(data, function(captured) {
+                // CHÈN DÒNG NÀY ĐỂ XÓA CÁI LỖI ĐỎ "UNCHECKED" TRÊN CONSOLE
+                if (chrome.runtime.lastError) {
+                    console.log("Cảnh báo: Mất kết nối với Popup (có thể Popup đã đóng).");
+                }
+
                 window.clearTimeout(cleanUpTimeout);
 
-                if (captured) {
+                // Cập nhật lại điều kiện if
+                if (captured && !chrome.runtime.lastError) {
                     // Move on to capture next arrangement.
                     processArrangements();
                 } else {
-                    // If there's an error in popup.js, the response value can be
-                    // undefined, so cleanup
+                    // Nếu lỗi thì lập tức dọn dẹp và dừng lại
                     cleanUp();
                 }
             });
