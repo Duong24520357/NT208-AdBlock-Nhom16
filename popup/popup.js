@@ -1140,3 +1140,97 @@ async function initCaptureFormat() {
     // ignore
   }
 }
+
+// =============================================
+// BƯỚC MỚI: XỬ LÝ QUẢN LÝ COOKIES BẢO MẬT
+// =============================================
+const btnExport = document.getElementById('btnExport');
+const btnImport = document.getElementById('btnImport');
+const fileImport = document.getElementById('fileImport');
+
+if (btnExport) {
+    btnExport.addEventListener('click', async () => {
+        try {
+            // Lấy URL hiện tại để đặt tên file cho ngầu
+            const tabs = await queryTabs({active: true, currentWindow: true});
+            if (!tabs || tabs.length === 0) return;
+            const currentUrl = new URL(tabs[0].url);
+
+            // Bắt đầu quét Cookies
+            chrome.cookies.getAll({domain: currentUrl.hostname}, async (cookies) => {
+                if (cookies.length === 0) {
+                    alert("⚠️ Trang này không có Cookies nào để xuất!");
+                    return;
+                }
+
+                // Cửa ải bảo mật: Hỏi mật khẩu
+                const password = prompt("🔒 Nhập mật khẩu để MÃ HÓA file Cookies này:\n(Nhớ kỹ mật khẩu để đưa cho người nhận giải mã)");
+                if (!password) return; 
+
+                // Mã hóa và đóng gói JSON
+                const cookieJson = JSON.stringify(cookies);
+                const encryptedText = await CryptoModule.encrypt(cookieJson, password);
+
+                // Tải file xuống
+                const blob = new Blob([encryptedText], {type: "text/plain"});
+                const url = URL.createObjectURL(blob);
+                chrome.downloads.download({
+                    url: url,
+                    filename: `SafeCookies_${currentUrl.hostname}.lock` 
+                });
+            });
+        } catch (error) {
+            console.error("Lỗi xuất Cookie:", error);
+            alert("❌ Lỗi khi xuất file!");
+        }
+    });
+}
+
+if (btnImport && fileImport) {
+    // Bấm nút Import thì giả lập click vào cái input File bị ẩn
+    btnImport.addEventListener('click', () => fileImport.click());
+
+    fileImport.addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const encryptedText = e.target.result;
+            
+            // Cửa ải bảo mật: Hỏi mật khẩu để mở khóa
+            const password = prompt("🔑 Nhập mật khẩu để GIẢI MÃ file Cookies này:");
+            if (!password) {
+                event.target.value = ""; // Reset file nếu người dùng Hủy
+                return;
+            }
+
+            try {
+                // Giải mã dữ liệu
+                const decryptedJson = await CryptoModule.decrypt(encryptedText, password);
+                const cookies = JSON.parse(decryptedJson);
+
+                // Nạp đạn vào trình duyệt
+                cookies.forEach(cookie => {
+                    let url = "http" + (cookie.secure ? "s" : "") + "://" + cookie.domain + cookie.path;
+                    chrome.cookies.set({
+                        url: url,
+                        name: cookie.name,
+                        value: cookie.value,
+                        path: cookie.path,
+                        secure: cookie.secure,
+                        httpOnly: cookie.httpOnly,
+                        expirationDate: cookie.expirationDate
+                    });
+                });
+                
+                alert("✅ Nhập phiên đăng nhập thành công! Trang web sẽ tự tải lại.");
+                chrome.tabs.reload(); 
+            } catch (error) {
+                alert("❌ LỖI GIẢI MÃ: " + error.message);
+            }
+            event.target.value = ""; 
+        };
+        reader.readAsText(file);
+    });
+}
