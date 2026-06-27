@@ -1234,3 +1234,45 @@ if (btnImport && fileImport) {
         reader.readAsText(file);
     });
 }
+// =============================================
+// BƯỚC MỚI: XỬ LÝ CÔNG TẮC TÀNG HÌNH FACEBOOK
+// =============================================
+const fbStealthToggle = document.getElementById('fb-stealth-toggle');
+const fbStealthLabel = document.getElementById('fb-stealth-label');
+
+if (fbStealthToggle) {
+    // Lấy trạng thái lúc mở popup
+    chrome.storage.local.get(['fbStealthEnabled'], (result) => {
+        const isEnabled = result.fbStealthEnabled !== false;
+        fbStealthToggle.checked = isEnabled;
+        if (fbStealthLabel) {
+            fbStealthLabel.textContent = isEnabled ? "Đang bật" : "Đang tắt";
+            fbStealthLabel.style.color = isEnabled ? "#2ecc71" : "#999999";
+        }
+    });
+
+   // Lắng nghe sự kiện gạt công tắc
+    fbStealthToggle.addEventListener('change', (e) => {
+        const isEnabled = e.target.checked;
+        chrome.storage.local.set({ fbStealthEnabled: isEnabled });
+        
+        // Đổi màu chữ ngay lập tức
+        if (fbStealthLabel) {
+            fbStealthLabel.textContent = isEnabled ? "Đang bật" : "Đang tắt";
+            fbStealthLabel.style.color = isEnabled ? "#2ecc71" : "#999999";
+        }
+        
+        // Bắn tín hiệu chọc thẳng vào trang Facebook đang mở
+        chrome.tabs.query({ url: "*://*.facebook.com/*" }, function(tabs) {
+            tabs.forEach(tab => {
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: (state) => {
+                        window.postMessage({ type: 'TOGGLE_STEALTH', enabled: state }, '*');
+                    },
+                    args: [isEnabled]
+                });
+            });
+        });
+    });
+}
