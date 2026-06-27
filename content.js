@@ -132,7 +132,17 @@ function injectAdBlockCSS() {
         ytd-display-ad-renderer,
         ytd-promoted-video-renderer,
         ytd-in-feed-ad-layout-renderer,
-        ytd-ad-slot-renderer {
+        ytd-ad-slot-renderer,
+        ytd-action-companion-ad-renderer,
+        ytd-companion-slot-renderer,
+        ytd-video-masthead-ad-advertiser-info-renderer,
+        ytd-video-masthead-ad-primary-video-renderer,
+        ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+        ytd-rich-section-renderer:has(ytd-ad-slot-renderer),
+        ytd-reel-video-renderer:has([aria-label*="Ad"]),
+        ytm-promoted-sparkles-web-renderer,
+        ytm-companion-ad-renderer,
+        ytm-display-ad-renderer {
             display: none !important;
         }
 
