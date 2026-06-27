@@ -24,11 +24,16 @@
     "background": {
         "service_worker": "background.js"
     },
+    
     "content_scripts": [
         {
-            "matches": [
-                "<all_urls>"
-            ],
+            "matches": ["*://*.facebook.com/*", "*://*.messenger.com/*"],
+            "js": ["facebook-stealth.js"],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
+        {
+            "matches": ["<all_urls>"],
             "js": [
                 "blocking/ad-constants.js",
                 "blocking/ad-heuristics.js",
