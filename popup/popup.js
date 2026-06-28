@@ -86,7 +86,7 @@ function sendRuntimeMessage(message) {
 
 // Doi thanh URL Render sau khi deploy, vi du:
 // const BACKEND_BASE_URL = "https://ten-app-cua-ban.onrender.com";
-const BACKEND_BASE_URL = "https://nt208-adblock-nhom16.onrender.com";
+const BACKEND_BASE_URL = "http://127.0.0.1:5000";
 let isDownloading = false;
 
 // Lưu state hiện tại và tab hiện tại
