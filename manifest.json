@@ -25,13 +25,7 @@
         "service_worker": "background.js"
     },
     
-    "content_scripts": [
-        {
-            "matches": ["*://*.facebook.com/*", "*://*.messenger.com/*"],
-            "js": ["facebook-stealth.js"],
-            "run_at": "document_start",
-            "world": "MAIN"
-        },
+  "content_scripts": [
         {
             "matches": ["<all_urls>"],
             "js": [
