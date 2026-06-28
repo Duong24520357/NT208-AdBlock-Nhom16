@@ -965,14 +965,11 @@ if (aiSidebarBtn) {
   aiSidebarBtn.addEventListener("click", async () => {
     try {
       blocklistHint.textContent = "Dang mo cua so AI...";
-      try {
-        await sendRuntimeMessage({ type: "OPEN_AI_TAB" });
-        window.close();
-      } catch (error) {
-        const url = chrome.runtime.getURL("sidebar/dist/index.html");
-        await createTab(url);
-        window.close();
+      const result = await sendRuntimeMessage({ type: "OPEN_AI_TAB" });
+      if (!result?.success) {
+        throw new Error(result?.error || "OPEN_AI_FAILED");
       }
+      window.close();
     } catch (error) {
       console.error("[Popup] Loi mo AI:", error);
       blocklistHint.textContent = "Khong mo duoc AI. Hay reload extension.";
