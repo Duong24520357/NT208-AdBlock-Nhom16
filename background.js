@@ -14,6 +14,123 @@ let state = { ...defaultState };
 let lastActiveTabId = null;
 let lastActiveWindowId = null;
 let tempBlankTabId = null;
+const OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat";
+
+async function translateSelectionWithOllama(input) {
+  const text = typeof input === "string" ? input.trim() : "";
+  if (!text) throw new Error("Không có nội dung để dịch.");
+  if (text.length > 6000) throw new Error("Đoạn văn quá dài để dịch nhanh.");
+
+  const model = "qwen3:8b";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+  try {
+    const response = await fetch(OLLAMA_CHAT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        think: false,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Translate the user's text into natural Vietnamese. Return only the Vietnamese translation, without notes or quotation marks.",
+          },
+          { role: "user", content: text },
+        ],
+        options: { temperature: 0.1 },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let detail = "";
+      try {
+        detail = (await response.json())?.error || "";
+      } catch {
+        // Ollama may return an empty body for CORS failures.
+      }
+      if (response.status === 403) {
+        throw new Error("Ollama đang chặn extension. Hãy restart Ollama.");
+      }
+      throw new Error(detail || `Ollama trả lỗi HTTP ${response.status}.`);
+    }
+
+    const payload = await response.json();
+    const translation = payload?.message?.content?.trim();
+    if (!translation) throw new Error("Ollama không trả về bản dịch.");
+    return { success: true, translation, model };
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Dịch quá thời gian. Hãy thử đoạn ngắn hơn.");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("Không kết nối được Ollama local.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function sendAiMessage(tabId, messageType) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, { type: messageType }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(response || null);
+    });
+  });
+}
+
+async function ensureAiMessage(tabId, messageType) {
+  const existingResponse = await sendAiMessage(tabId, messageType);
+  if (existingResponse?.success) return existingResponse;
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["ai-content.js"],
+    });
+  } catch {
+    return null;
+  }
+
+  return sendAiMessage(tabId, messageType);
+}
+
+function openAiTab() {
+  return new Promise((resolve) => {
+    chrome.tabs.create(
+      { url: chrome.runtime.getURL("sidebar/dist/index.html") },
+      () => {
+        const error = chrome.runtime.lastError;
+        resolve(
+          error
+            ? { success: false, error: error.message }
+            : { success: true, mode: "tab" },
+        );
+      },
+    );
+  });
+}
+
+async function restoreAiOnOpenTabs() {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs
+      .filter(
+        (tab) =>
+          typeof tab.id === "number" && /^(https?|file):/i.test(tab.url || ""),
+      )
+      .map((tab) => ensureAiMessage(tab.id, "AI_PING")),
+  );
+}
 
 // Hàm áp dụng state và declarativceNetRequest
 async function applyState() {
@@ -156,11 +273,18 @@ async function captureVisibleTabWithThrottle(windowId, retries = 3) {
 chrome.runtime.onInstalled.addListener(async () => {
   await loadState(); // 1. Đọc state cũ
   await applyState(); // 2. Áp dụng vào Chrome
+  await restoreAiOnOpenTabs();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await loadState(); // 1. Đọc state cũ
   await applyState(); // 2. Áp dụng vào Chrome
+});
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "toggle-ai-sidebar") {
+    openAiTab();
+  }
 });
 
 // Hàm cập nhật badge icon theo trạng thái tab hiện tại
@@ -358,6 +482,21 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 // Nhận message từ popup và content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
+    case "AI_TRANSLATE_SELECTION":
+      translateSelectionWithOllama(message.text)
+        .then(sendResponse)
+        .catch((error) => {
+          sendResponse({
+            success: false,
+            error: error?.message || "Không dịch được bằng Ollama.",
+          });
+        });
+      return true;
+
+    case "OPEN_AI_TAB":
+      openAiTab().then(sendResponse);
+      return true;
+
     // Popup hỏi trạng thái hiện tại
     case "GET_STATE":
       {

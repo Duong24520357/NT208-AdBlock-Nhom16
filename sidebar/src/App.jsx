@@ -1,30 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChatColumn from "./components/ChatColumn.jsx";
-import ModelPicker from "./components/ModelPicker.jsx";
-import PromptTemplates from "./components/PromptTemplates.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
-import Toolbar from "./components/Toolbar.jsx";
-import { useChromeStorage } from "./hooks/useChromeStorage.js";
 import { useStreamingChat } from "./hooks/useStreamingChat.js";
-import { listModels, validateToken } from "./services/openrouter.js";
+import { listOllamaModels } from "./services/ollama.js";
 import { STORAGE_KEYS } from "./utils/storageKeys.js";
 import { ACTION_TEMPLATES } from "./utils/strings.js";
 
-const DEFAULT_TEMPLATES = [
-  { id: "explain", label: "Explain simply", value: "Explain simply" },
-  { id: "summarize", label: "Summarize", value: "Summarize" },
-  { id: "translate", label: "Translate", value: "Translate to Vietnamese" },
-  { id: "rewrite", label: "Rewrite", value: "Rewrite for clarity" },
-];
-
-const FALLBACK_MODELS = [
-  { id: "openai/gpt-4o", vendor: "OpenAI" },
-  { id: "anthropic/claude-3.5-sonnet", vendor: "Claude" },
-  { id: "google/gemini-1.5-pro", vendor: "Gemini" },
-  { id: "x-ai/grok-2", vendor: "Grok" },
-  { id: "deepseek/deepseek-chat", vendor: "DeepSeek" },
-  { id: "meta-llama/llama-3.1-70b-instruct", vendor: "Llama" },
-];
+const ASK_MODEL = "qwen3:8b";
+const OLLAMA_FALLBACK_MODELS = [{ id: ASK_MODEL, vendor: "Ollama" }];
 
 function createId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -48,43 +31,15 @@ function formatContext(context) {
   };
 }
 
-function mapModels(models) {
-  const buckets = [];
-
-  models.forEach((model) => {
-    const id = model?.id || "";
-    const lowered = id.toLowerCase();
-    let vendor = null;
-
-    if (lowered.includes("openai")) vendor = "OpenAI";
-    if (lowered.includes("anthropic") || lowered.includes("claude"))
-      vendor = "Claude";
-    if (lowered.includes("gemini") || lowered.includes("google"))
-      vendor = "Gemini";
-    if (lowered.includes("grok") || lowered.includes("x-ai")) vendor = "Grok";
-    if (lowered.includes("deepseek")) vendor = "DeepSeek";
-    if (lowered.includes("llama") || lowered.includes("meta-llama"))
-      vendor = "Llama";
-
-    if (vendor) buckets.push({ id, vendor });
-  });
-
-  return buckets.length ? buckets : FALLBACK_MODELS;
+function mapOllamaModels(models) {
+  return models
+    .map((model) => model?.name || model?.model)
+    .filter(Boolean)
+    .map((id) => ({ id, vendor: "Ollama" }));
 }
 
 export default function App() {
-  const [apiKey, setApiKey] = useChromeStorage(STORAGE_KEYS.apiKey, "");
-  const [theme, setTheme] = useChromeStorage(STORAGE_KEYS.theme, "dark");
-  const [templates, setTemplates] = useChromeStorage(
-    STORAGE_KEYS.templates,
-    DEFAULT_TEMPLATES,
-  );
-  const [selectedModels, setSelectedModels] = useChromeStorage(
-    STORAGE_KEYS.modelPrefs,
-    [],
-  );
-
-  const [catalog, setCatalog] = useState(FALLBACK_MODELS);
+  const [catalog, setCatalog] = useState(OLLAMA_FALLBACK_MODELS);
   const [input, setInput] = useState("");
   const [context, setContext] = useState({
     title: "",
@@ -94,79 +49,106 @@ export default function App() {
   const [conversations, setConversations] = useState({});
   const [streamingState, setStreamingState] = useState({});
   const [status, setStatus] = useState("");
-  const [tokenStatus, setTokenStatus] = useState({
-    state: "idle",
-    message: "",
+  const [ollamaStatus, setOllamaStatus] = useState({
+    state: "checking",
+    message: "Đang kết nối...",
   });
 
-  const lastPromptRef = useRef("");
   const conversationsRef = useRef({});
+  const historyLoadedRef = useRef(false);
   const { startStream, stopStream } = useStreamingChat();
 
-  const activeModels = useMemo(() => {
-    if (selectedModels.length) return selectedModels;
-    return catalog.slice(0, 1).map((model) => model.id);
-  }, [selectedModels, catalog]);
-
-  const compareMode = activeModels.length > 1;
+  const activeModel = catalog.some((model) => model.id === ASK_MODEL)
+    ? ASK_MODEL
+    : null;
   const isStreaming = Object.values(streamingState).some(Boolean);
 
-  useEffect(() => {
-    if (!apiKey) {
-      setCatalog(FALLBACK_MODELS);
-      setTokenStatus({ state: "idle", message: "Not checked" });
-      return;
-    }
-
-    listModels(apiKey)
-      .then((models) => {
-        const mapped = mapModels(models);
-        setCatalog(mapped);
-        if (!selectedModels.length && mapped.length) {
-          setSelectedModels([mapped[0].id]);
-        }
-      })
-      .catch(() => {
-        setCatalog(FALLBACK_MODELS);
+  const loadOllamaModels = async () => {
+    setOllamaStatus({ state: "checking", message: "Đang kết nối..." });
+    try {
+      const mapped = mapOllamaModels(await listOllamaModels());
+      setCatalog(mapped);
+      if (!mapped.length) {
+        setOllamaStatus({ state: "invalid", message: "Chưa cài model local" });
+        return;
+      }
+      if (!mapped.some((model) => model.id === ASK_MODEL)) {
+        setOllamaStatus({
+          state: "invalid",
+          message: `Chưa cài ${ASK_MODEL}`,
+        });
+        return;
+      }
+      setOllamaStatus({
+        state: "valid",
+        message: `${ASK_MODEL} sẵn sàng`,
       });
-  }, [apiKey, selectedModels.length, setSelectedModels]);
-
-  useEffect(() => {
-    if (apiKey) {
-      setTokenStatus({ state: "idle", message: "Not checked" });
+    } catch {
+      setCatalog([]);
+      setOllamaStatus({ state: "invalid", message: "Ollama chưa chạy" });
     }
-  }, [apiKey]);
+  };
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
+    loadOllamaModels();
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = "dark";
+    document.documentElement.classList.add("dark");
+  }, []);
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
 
   useEffect(() => {
-    window.parent?.postMessage(
-      { source: "ai-sidebar", type: "REQUEST_CONTEXT" },
-      "*",
-    );
+    chrome.storage.local.get([STORAGE_KEYS.chatHistory], (data) => {
+      const stored = data?.[STORAGE_KEYS.chatHistory];
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        conversationsRef.current = stored;
+        setConversations(stored);
+      }
+      historyLoadedRef.current = true;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!historyLoadedRef.current) return undefined;
+    const timeoutId = setTimeout(() => {
+      chrome.storage.local.set({
+        [STORAGE_KEYS.chatHistory]: conversations,
+      });
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [conversations]);
+
+  useEffect(() => {
+    if (window.parent !== window) {
+      window.parent.postMessage(
+        { source: "ai-sidebar", type: "REQUEST_CONTEXT" },
+        "*",
+      );
+    }
 
     const handler = (event) => {
       const data = event?.data;
-      if (!data || data.source !== "ai-sidebar") return;
-
-      if (data.type === "CONTEXT_RESPONSE") {
-        setContext((prev) => ({ ...prev, ...data.payload }));
+      if (
+        !data ||
+        data.source !== "ai-sidebar" ||
+        event.source !== window.parent
+      ) {
+        return;
       }
 
+      if (data.type === "CONTEXT_RESPONSE") {
+        setContext((previous) => ({ ...previous, ...data.payload }));
+      }
       if (data.type === "PROMPT_FROM_SELECTION") {
-        const action = data.payload?.action;
         const text = data.payload?.text || "";
-        const template = ACTION_TEMPLATES[action];
-        setInput(template ? template(text) : text);
+        setInput(ACTION_TEMPLATES.ask(text));
         if (data.payload?.context) {
-          setContext((prev) => ({ ...prev, ...data.payload.context }));
+          setContext((previous) => ({ ...previous, ...data.payload.context }));
         }
       }
     };
@@ -175,85 +157,78 @@ export default function App() {
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  const handleSend = async (prompt) => {
-    const trimmed = prompt.trim();
-    if (!trimmed) return;
-    if (!apiKey) {
-      setStatus("Add your OpenRouter API key to continue.");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const selectedText = params.get("text") || "";
+    const pageTitle = params.get("pageTitle") || "";
+    const pageUrl = params.get("pageUrl") || "";
+
+    if (selectedText) setInput(ACTION_TEMPLATES.ask(selectedText));
+    if (pageTitle || pageUrl || selectedText) {
+      setContext({ title: pageTitle, url: pageUrl, selectedText });
+    }
+  }, []);
+
+  const handleSend = async () => {
+    const prompt = input.trim();
+    if (!prompt || isStreaming) return;
+    if (!activeModel) {
+      setStatus("Không tìm thấy model Ollama để chat.");
       return;
     }
 
     setStatus("");
-    lastPromptRef.current = trimmed;
-
+    const userMessage = { id: createId(), role: "user", content: prompt };
+    const assistantMessage = {
+      id: createId(),
+      role: "assistant",
+      content: "",
+    };
+    const history = conversationsRef.current[activeModel] || [];
+    const payloadMessages = [...history, userMessage]
+      .filter((message) => message.content?.trim())
+      .map((message) => ({ role: message.role, content: message.content }));
     const systemMessage = formatContext(context);
+    if (systemMessage) payloadMessages.unshift(systemMessage);
 
-    activeModels.forEach(async (modelId) => {
-      const userMessage = { id: createId(), role: "user", content: trimmed };
-      const assistantMessage = {
-        id: createId(),
-        role: "assistant",
-        content: "",
-      };
-
-      setConversations((prev) => {
-        const history = prev[modelId] || [];
-        return {
-          ...prev,
-          [modelId]: [...history, userMessage, assistantMessage],
-        };
-      });
-
-      setStreamingState((prev) => ({ ...prev, [modelId]: true }));
-
-      const history = conversationsRef.current[modelId] || [];
-      const payloadMessages = [...history, userMessage].map((item) => ({
-        role: item.role,
-        content: item.content,
-      }));
-
-      if (systemMessage) payloadMessages.unshift(systemMessage);
-
-      await startStream({
-        apiKey,
-        model: modelId,
-        messages: payloadMessages,
-        onDelta: (delta) => {
-          setConversations((prev) => {
-            const historyNext = prev[modelId] || [];
-            const updated = historyNext.map((item) => {
-              if (item.id !== assistantMessage.id) return item;
-              return { ...item, content: `${item.content}${delta}` };
-            });
-            return { ...prev, [modelId]: updated };
-          });
-        },
-        onDone: () => {
-          setStreamingState((prev) => ({ ...prev, [modelId]: false }));
-        },
-        onError: (error) => {
-          setStreamingState((prev) => ({ ...prev, [modelId]: false }));
-          setConversations((prev) => {
-            const historyNext = prev[modelId] || [];
-            const updated = historyNext.map((item) => {
-              if (item.id !== assistantMessage.id) return item;
-              return {
-                ...item,
-                content: `${item.content}\n\n[Error] ${error.message}`,
-              };
-            });
-            return { ...prev, [modelId]: updated };
-          });
-        },
-      });
-    });
-
+    const nextConversations = {
+      ...conversationsRef.current,
+      [activeModel]: [...history, userMessage, assistantMessage],
+    };
+    conversationsRef.current = nextConversations;
+    setConversations(nextConversations);
+    setStreamingState({ [activeModel]: true });
     setInput("");
-  };
 
-  const handleRegenerate = () => {
-    if (!lastPromptRef.current) return;
-    handleSend(lastPromptRef.current);
+    await startStream({
+      model: activeModel,
+      messages: payloadMessages,
+      onDelta: (delta) => {
+        setConversations((previous) => ({
+          ...previous,
+          [activeModel]: (previous[activeModel] || []).map((message) =>
+            message.id === assistantMessage.id
+              ? { ...message, content: `${message.content}${delta}` }
+              : message,
+          ),
+        }));
+      },
+      onDone: () => setStreamingState({}),
+      onError: (error) => {
+        setStatus(error?.message || "Không kết nối được Ollama local.");
+        setConversations((previous) => ({
+          ...previous,
+          [activeModel]: (previous[activeModel] || []).map((message) =>
+            message.id === assistantMessage.id
+              ? {
+                  ...message,
+                  content: message.content || `[Error] ${error.message}`,
+                }
+              : message,
+          ),
+        }));
+      },
+    });
   };
 
   const handleStop = () => {
@@ -262,147 +237,120 @@ export default function App() {
   };
 
   const handleClear = () => {
+    stopStream();
+    setStreamingState({});
+    conversationsRef.current = {};
     setConversations({});
     setStatus("");
   };
 
-  const addTemplate = () => {
-    const label = window.prompt("Template label");
-    if (!label) return;
-    const value = window.prompt("Template prompt");
-    if (!value) return;
-    const next = [...templates, { id: createId(), label, value }];
-    setTemplates(next);
-  };
-
-  const handleCheckToken = async () => {
-    const trimmed = (apiKey || "").trim();
-    if (!trimmed) {
-      setTokenStatus({ state: "invalid", message: "Missing API key" });
-      return;
-    }
-
-    setTokenStatus({ state: "checking", message: "Verifying..." });
-    try {
-      const modelToCheck = activeModels[0] || FALLBACK_MODELS[0].id;
-      await validateToken({ apiKey: trimmed, model: modelToCheck });
-      setTokenStatus({ state: "valid", message: "Token OK" });
-    } catch (error) {
-      const message =
-        error?.message === "TOKEN_INVALID"
-          ? "Token invalid or blocked"
-          : error?.message || "Token invalid";
-      setTokenStatus({
-        state: "invalid",
-        message,
-      });
-    }
-  };
-
-  const columns = activeModels.map((modelId) => {
-    const messages = conversations[modelId] || [];
-    const title = catalog.find((m) => m.id === modelId)?.vendor || modelId;
-    return {
-      id: modelId,
-      title,
-      messages,
-      streaming: !!streamingState[modelId],
-    };
-  });
+  const messages = activeModel ? conversations[activeModel] || [] : [];
 
   return (
-    <div className="flex h-screen flex-col gap-4 bg-transparent p-4 text-slate-100">
-      <header className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+    <div className="flex h-screen flex-col gap-3 overflow-hidden bg-transparent p-3 text-slate-100">
+      <header className="flex flex-none items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3">
         <div>
           <div className="text-xs uppercase tracking-[0.3em] text-slate-400">
-            AI Sidebar
+            Local AI
           </div>
-          <div className="text-lg font-semibold text-slate-100">
-            OpenRouter Multi-Model
-          </div>
+          <div className="text-lg font-semibold">Ask AI</div>
         </div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-          {compareMode ? "Compare" : "Single"}
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.15em] text-slate-400">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              ollamaStatus.state === "valid"
+                ? "bg-emerald-400"
+                : ollamaStatus.state === "checking"
+                  ? "animate-pulse bg-amber-400"
+                  : "bg-rose-400"
+            }`}
+          />
+          {ollamaStatus.state === "valid" ? "Local ready" : "Local offline"}
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div className="space-y-4">
+      <details className="group flex-none overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/60">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-200">
+          <span>Ollama status · qwen3:8b</span>
+          <span className="text-slate-500 transition group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="max-h-[50vh] overflow-y-auto border-t border-slate-800 p-3">
           <SettingsPanel
-            apiKey={apiKey}
-            onApiKeyChange={setApiKey}
-            theme={theme}
-            onTheme={setTheme}
-            onCheckToken={handleCheckToken}
-            tokenStatus={tokenStatus}
+            onCheckOllama={loadOllamaModels}
+            ollamaStatus={ollamaStatus}
           />
-          <ModelPicker
-            models={catalog}
-            selected={activeModels}
-            onChange={setSelectedModels}
-          />
-          <PromptTemplates
-            templates={templates}
-            onUse={(template) => setInput(template.value)}
-            onAdd={addTemplate}
-          />
-          <Toolbar
-            onRegenerate={handleRegenerate}
-            onStop={handleStop}
-            onClear={handleClear}
+        </div>
+      </details>
+
+      <div className="flex flex-none items-center justify-between gap-3">
+        <div className="text-xs text-slate-400">
+          Bôi đen văn bản trên trang và bấm Translate để dịch nhanh.
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleStop}
+            disabled={!isStreaming}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs disabled:opacity-40"
+          >
+            Stop
+          </button>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
+      {status ? (
+        <div className="flex-none rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          {status}
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/60 p-2">
+        {activeModel ? (
+          <ChatColumn
+            title={activeModel}
+            messages={messages}
             streaming={isStreaming}
           />
-          {status ? (
-            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              {status}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-          <div className="flex-1">
-            <div
-              className={
-                compareMode ? "grid h-full gap-3 md:grid-cols-2" : "grid h-full"
-              }
-              style={{
-                gridTemplateColumns: compareMode
-                  ? `repeat(${Math.min(columns.length, 4)}, minmax(0, 1fr))`
-                  : "minmax(0, 1fr)",
-              }}
-            >
-              {columns.map((column) => (
-                <ChatColumn
-                  key={column.id}
-                  title={column.title}
-                  messages={column.messages}
-                  streaming={column.streaming}
-                />
-              ))}
-            </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-rose-300">
+            Ollama chưa sẵn sàng. Mở Model Ollama để kiểm tra.
           </div>
+        )}
+      </div>
 
-          <div className="space-y-2">
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              rows={3}
-              placeholder="Type your prompt..."
-              className="w-full resize-none rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-100 focus:border-cyan-400 focus:outline-none"
-            />
-            <div className="flex items-center justify-between">
-              <div className="text-[11px] text-slate-400">
-                Context: {context.title || "No page context"}
-              </div>
-              <button
-                type="button"
-                onClick={() => handleSend(input)}
-                className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-              >
-                Send
-              </button>
-            </div>
+      <div className="flex-none space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              handleSend();
+            }
+          }}
+          rows={2}
+          placeholder="Hỏi AI... (Enter để gửi, Shift+Enter để xuống dòng)"
+          className="w-full resize-none rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm focus:border-cyan-400 focus:outline-none"
+        />
+        <div className="flex items-center justify-between gap-3">
+          <div className="truncate text-[11px] text-slate-400">
+            {activeModel || "Không có model"} · {context.title || "Local chat"}
           </div>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim() || isStreaming || !activeModel}
+            className="rounded-full bg-cyan-500 px-5 py-2 text-xs font-semibold text-slate-950 transition active:scale-95 disabled:opacity-40"
+          >
+            {isStreaming ? "Đang trả lời..." : "Ask AI"}
+          </button>
         </div>
       </div>
     </div>
