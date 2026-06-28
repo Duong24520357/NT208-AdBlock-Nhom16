@@ -288,10 +288,31 @@ async function togglePipEnabled(enabled) {
 async function preparePipInTab(tabId) {
   if (!tabId || state.pipEnabled === false) return { success: false, error: "PIP_DISABLED" };
 
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(
+      tabId,
+      {
+        type: "PREPARE_AUTO_PIP",
+      },
+      (response) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          resolve({ success: false, error: error.message || "SEND_MESSAGE_FAILED" });
+          return;
+        }
+        resolve(response || { success: true });
+      },
+    );
+  });
+}
+
+async function refreshPipInTab(tabId) {
+  if (!tabId || state.pipEnabled === false) return { success: false, error: "PIP_DISABLED" };
+
   chrome.tabs.sendMessage(
     tabId,
     {
-      type: "PREPARE_AUTO_PIP",
+      type: "REFRESH_PIP_STATE",
     },
     () => void chrome.runtime.lastError,
   );
@@ -403,13 +424,13 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   });
 
   if (activeInfo?.tabId) {
-    preparePipInTab(activeInfo.tabId);
+    refreshPipInTab(activeInfo.tabId);
   }
 
   if (!state.pipEnabled || !previousTabId || previousTabId === activeInfo?.tabId) {
     return;
   }
-  preparePipInTab(previousTabId);
+  refreshPipInTab(previousTabId);
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {

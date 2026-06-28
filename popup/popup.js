@@ -8,13 +8,14 @@ const pipToggleLabel = document.getElementById("pip-toggle-label");
 const pipDomainLabel = document.getElementById("pip-domain-label");
 const pipDomainBtn = document.getElementById("pip-domain-btn");
 // const whitelistBtn = document.getElementById("whitelist-btn");
-const pickerBtn = document.getElementById("picker-btn");
+// const pickerBtn = document.getElementById("picker-btn");
 const tabBlockedCount = document.getElementById("tab-blocked-count");
 const totalBlockedCount = document.getElementById("total-blocked-count");
 const hostnameLabel = document.getElementById("hostname-label");
 const statusDot = document.getElementById("status-dot");
 const blockSiteBtn = document.getElementById("blocksite-btn");
 const pipNowBtn = document.getElementById("pip-now-btn");
+const pipStatus = document.getElementById("pip-status");
 const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
 const blockedDomainsEl = document.getElementById("blocked-domains");
@@ -418,12 +419,21 @@ function renderUI(state) {
   // }
 
   // --- Nút Element Picker ---
-  pickerBtn.disabled = !state.enabled || state.whitelisted;
-  pickerBtn.style.opacity = pickerBtn.disabled ? "0.5" : "1";
+  // pickerBtn.disabled = !state.enabled || state.whitelisted;
+  // pickerBtn.style.opacity = pickerBtn.disabled ? "0.5" : "1";
 
   if (pipNowBtn) {
     pipNowBtn.disabled = !state.enabled || state.pipEnabled === false;
     pipNowBtn.style.opacity = pipNowBtn.disabled ? "0.5" : "1";
+  }
+
+  if (pipStatus && state.pipEnabled === false) {
+    pipStatus.textContent = "PiP đang tắt.";
+    pipStatus.classList.remove("is-success");
+    pipStatus.classList.add("is-error");
+  } else if (pipStatus && !pipStatus.dataset.busy) {
+    pipStatus.textContent = "Bấm chuẩn bị rồi chuyển tab để video tự tách ra.";
+    pipStatus.classList.remove("is-success", "is-error");
   }
 
   if (pipDomainBtn) {
@@ -739,32 +749,68 @@ if (pipDomainBtn) {
 // =============================================
 // BƯỚC 6: XỬ LÝ ELEMENT PICKER
 // =============================================
-pickerBtn.addEventListener("click", async () => {
-  try {
-    if (!currentTab) return;
+// pickerBtn.addEventListener("click", async () => {
+//   try {
+//     if (!currentTab) return;
 
-    // Đóng popup trước
-    window.close();
+//     // Đóng popup trước
+//     window.close();
 
-    // Gửi lệnh xuống content.js của tab hiện tại
-    await chrome.tabs.sendMessage(currentTab.id, {
-      type: "ENTER_ELEMENT_PICKER",
-    });
-  } catch (error) {
-    console.error("[Popup] Lỗi element picker:", error);
-  }
-});
+//     // Gửi lệnh xuống content.js của tab hiện tại
+//     await chrome.tabs.sendMessage(currentTab.id, {
+//       type: "ENTER_ELEMENT_PICKER",
+//     });
+//   } catch (error) {
+//     console.error("[Popup] Lỗi element picker:", error);
+//   }
+// });
 
 if (pipNowBtn) {
   pipNowBtn.addEventListener("click", async () => {
     try {
       if (!currentTab) return;
-      window.close();
-      await sendTabMessage(currentTab.id, {
+
+      if (pipStatus) {
+        pipStatus.dataset.busy = "true";
+        pipStatus.textContent = "Đang chuẩn bị video hiện tại...";
+        pipStatus.classList.remove("is-success", "is-error");
+      }
+
+      const response = await sendTabMessage(currentTab.id, {
         type: "PREPARE_AUTO_PIP",
       });
+
+      if (!response?.success) {
+        const reason =
+          response?.error === "NO_VIDEO"
+            ? "Không tìm thấy video đang hiển thị."
+            : response?.error === "PIP_NOT_ALLOWED"
+              ? "Trang này không cho phép PiP."
+              : "Không chuẩn bị được PiP.";
+        if (pipStatus) {
+          delete pipStatus.dataset.busy;
+          pipStatus.textContent = reason;
+          pipStatus.classList.remove("is-success");
+          pipStatus.classList.add("is-error");
+        }
+        return;
+      }
+
+      if (pipStatus) {
+        pipStatus.textContent = "Đã ghim video. Chuyển tab để PiP tự bật.";
+        pipStatus.classList.remove("is-error");
+        pipStatus.classList.add("is-success");
+      }
+
+      setTimeout(() => window.close(), 450);
     } catch (error) {
       console.error("[Popup] Lỗi bật PiP:", error);
+      if (pipStatus) {
+        delete pipStatus.dataset.busy;
+        pipStatus.textContent = "Trang này chưa sẵn sàng nhận lệnh PiP.";
+        pipStatus.classList.remove("is-success");
+        pipStatus.classList.add("is-error");
+      }
     }
   });
 }

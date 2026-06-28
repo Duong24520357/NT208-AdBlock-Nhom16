@@ -1,5 +1,6 @@
 const PipManager = (() => {
   const retryTimers = new WeakMap();
+  let preparedPipVideo = null;
 
   const state = {
     enabled: true,
@@ -42,21 +43,145 @@ const PipManager = (() => {
     return allowedDomains.some((domain) => hostnameMatches(hostname, domain));
   }
 
+  function isTopLevelDocument() {
+    try { return window.top === window; } catch (_) { return false; }
+  }
+
+  function isFeatureAllowedByPolicy(featureName) {
+    const policy = document.permissionsPolicy || document.featurePolicy;
+    if (!policy || typeof policy.allowsFeature !== "function") {
+      return isTopLevelDocument();
+    }
+
+    try { return policy.allowsFeature(featureName) !== false; } catch (_) { return false; }
+  }
+
   function isPipPermittedInCurrentDocument() {
-    try { return document.pictureInPictureEnabled === true; } catch (_) { return false; }
+    if (!isFeatureAllowedByPolicy("picture-in-picture")) return false;
+    if (typeof HTMLVideoElement === "undefined") return false;
+    if (typeof HTMLVideoElement.prototype.requestPictureInPicture !== "function") return false;
+    if (typeof document.exitPictureInPicture !== "function") return false;
+    return true;
+  }
+
+  function canManagePipInCurrentDocument() {
+    return (
+      state.enabled &&
+      state.pipEnabled &&
+      isPipAllowedForCurrentPage() &&
+      isPipPermittedInCurrentDocument()
+    );
+  }
+
+  function isYouTubePage() {
+    return /(^|\.)youtube(?:-nocookie)?\.com$/.test(window.location.hostname);
+  }
+
+  function normalizeYouTubeVideoFlags(video) {
+    if (!isYouTubePage() || !video) return;
+    try { video.disablePictureInPicture = false; } catch (_) {}
+    try { video.removeAttribute("disablepictureinpicture"); } catch (_) {}
+  }
+
+  function isYouTubeAdVideo(video) {
+    if (!isYouTubePage() || !video?.closest) return false;
+    const player = video.closest("#movie_player");
+    if (!player) return false;
+    return (
+      player.classList.contains("ad-showing") ||
+      player.classList.contains("ad-interrupting") ||
+      !!player.querySelector(".ytp-ad-player-overlay, .ytp-ad-preview-container")
+    );
   }
 
   function isVideoCandidate(video) {
-    return !!video && video.readyState >= 1 && !video.ended && !video.disablePictureInPicture;
+    if (!video || video.ownerDocument !== document) return false;
+    normalizeYouTubeVideoFlags(video);
+    return video.readyState >= 1 && !video.ended && !video.disablePictureInPicture && !isYouTubeAdVideo(video);
   }
 
   function isEligibleVideo(video) {
     return isVideoCandidate(video) && !video.hasAttribute("data-auto-pip-disabled");
   }
 
+  function isPreparedPipVideo(video) {
+    if (preparedPipVideo && !preparedPipVideo.isConnected) {
+      preparedPipVideo = null;
+    }
+    return !!video && (video === preparedPipVideo || video.hasAttribute("data-auto-pip-prepared"));
+  }
+
+  function clearPreparedPipMarkers(exceptVideo = null) {
+    getVideos().forEach((video) => {
+      if (video === exceptVideo) return;
+      try { video.removeAttribute("data-auto-pip-prepared"); } catch (_) {}
+    });
+
+    preparedPipVideo = exceptVideo;
+  }
+
+  function isVisibleVideo(video) {
+    if (!video || video.ownerDocument !== document) return false;
+
+    let rect;
+    try { rect = video.getBoundingClientRect(); } catch (_) { return false; }
+    if (!rect || rect.width < 80 || rect.height < 45) return false;
+    if (rect.bottom <= 0 || rect.right <= 0) return false;
+    if (rect.top >= window.innerHeight || rect.left >= window.innerWidth) return false;
+
+    try {
+      const style = window.getComputedStyle(video);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+        return false;
+      }
+    } catch (_) {}
+
+    return true;
+  }
+
+  function getVideoScore(video) {
+    if (!isEligibleVideo(video) || video.paused || video.ended || video.readyState < 2 || pipDeniedVideos.has(video)) {
+      return -1;
+    }
+
+    let score = 0;
+    let rect = null;
+
+    if (isVisibleVideo(video)) {
+      rect = video.getBoundingClientRect();
+      score += 1000;
+      score += Math.min(rect.width * rect.height, 1000000) / 1000;
+    }
+
+    if (document.fullscreenElement?.contains?.(video)) score += 700;
+    if (isPreparedPipVideo(video)) score += 2000;
+    if (video.closest?.("ytd-reel-video-renderer[is-active], ytd-shorts, ytm-shorts-lockup-view-model")) score += 600;
+    if (video.closest?.("#movie_player")) score += 400;
+    if (video.hasAttribute("data-auto-pip-managed")) score += 100;
+    if (!video.muted) score += 20;
+
+    if (rect) {
+      const videoCenterX = rect.left + rect.width / 2;
+      const videoCenterY = rect.top + rect.height / 2;
+      const pageCenterX = window.innerWidth / 2;
+      const pageCenterY = window.innerHeight / 2;
+      const distance = Math.hypot(videoCenterX - pageCenterX, videoCenterY - pageCenterY);
+      score -= Math.min(distance / 10, 200);
+    }
+
+    return score;
+  }
+
+  function getBestPipCandidate() {
+    return getVideos()
+      .map((video) => ({ video, score: getVideoScore(video) }))
+      .filter((entry) => entry.score >= 0)
+      .sort((a, b) => b.score - a.score)[0]?.video || null;
+  }
+
   function syncVideoWithRetry(video, retries = 5, delay = 200) {
     if (!video) return;
-    if (!state.enabled || !state.pipEnabled || !isPipAllowedForCurrentPage()) {
+    if (!canManagePipInCurrentDocument()) {
       clearRetryTimer(video);
       return;
     }
@@ -102,10 +227,12 @@ const PipManager = (() => {
 
   function syncVideo(video) {
     if (!video) return;
-    if (!state.enabled || !state.pipEnabled || !isPipAllowedForCurrentPage()) {
+    if (!canManagePipInCurrentDocument()) {
       clearRetryTimer(video);
       try { video.removeAttribute("autopictureinpicture"); } catch (_) {}
       try { video.removeAttribute("data-auto-pip-managed"); } catch (_) {}
+      try { video.removeAttribute("data-auto-pip-prepared"); } catch (_) {}
+      if (video === preparedPipVideo) preparedPipVideo = null;
       return;
     }
     if (isEligibleVideo(video)) {
@@ -124,11 +251,13 @@ const PipManager = (() => {
   }
 
   function refreshVideos() {
-    if (!state.enabled || !state.pipEnabled || !isPipAllowedForCurrentPage()) {
+    if (!canManagePipInCurrentDocument()) {
       getVideos().forEach((v) => {
         try { v.removeAttribute("autopictureinpicture"); } catch (_) {}
         try { v.removeAttribute("data-auto-pip-managed"); } catch (_) {}
+        try { v.removeAttribute("data-auto-pip-prepared"); } catch (_) {}
       });
+      preparedPipVideo = null;
       return;
     }
     getVideos().forEach(syncVideo);
@@ -147,19 +276,40 @@ const PipManager = (() => {
 
   const pipDeniedVideos = new WeakSet();
 
+  function getFallbackPreparedCandidate() {
+    return getVideos()
+      .filter((video) => isEligibleVideo(video) && isVisibleVideo(video) && !pipDeniedVideos.has(video))
+      .sort((a, b) => {
+        const rectA = a.getBoundingClientRect();
+        const rectB = b.getBoundingClientRect();
+        return rectB.width * rectB.height - rectA.width * rectA.height;
+      })[0] || null;
+  }
+
+  function prepareCurrentVideoForPip() {
+    if (!canManagePipInCurrentDocument()) {
+      return { success: false, error: "PIP_NOT_ALLOWED" };
+    }
+
+    const candidate = getBestPipCandidate() || getFallbackPreparedCandidate();
+    if (!candidate) {
+      return { success: false, error: "NO_VIDEO" };
+    }
+
+    clearPreparedPipMarkers(candidate);
+    try { candidate.setAttribute("autopictureinpicture", ""); } catch (_) {}
+    try { candidate.setAttribute("data-auto-pip-managed", ""); } catch (_) {}
+    try { candidate.setAttribute("data-auto-pip-prepared", ""); } catch (_) {}
+    syncVideo(candidate);
+
+    return { success: true, prepared: true };
+  }
+
   async function tryEnterPip() {
-    if (!state.enabled || !state.pipEnabled || !isPipAllowedForCurrentPage()) return;
-    if (!isPipPermittedInCurrentDocument()) return;
+    if (!canManagePipInCurrentDocument()) return;
     if (document.pictureInPictureElement) return;
 
-    const candidate = getVideos().find(
-      (v) =>
-        isEligibleVideo(v) &&
-        !v.paused &&
-        !v.ended &&
-        v.readyState >= 2 &&
-        !pipDeniedVideos.has(v)
-    );
+    const candidate = getBestPipCandidate();
     if (!candidate) return;
 
     try {
@@ -175,6 +325,7 @@ const PipManager = (() => {
   // Điều này đảm bảo video element được trả về đúng vị trí trong DOM
   // trước khi tab visible và render lại, tránh bị phủ mất.
   function tryExitPip() {
+    if (!isPipPermittedInCurrentDocument()) return Promise.resolve();
     const pipVideo = document.pictureInPictureElement;
     if (!pipVideo) return Promise.resolve();
 
@@ -209,7 +360,7 @@ const PipManager = (() => {
   let visibilityLock = false;
 
   async function onVisibilityChange() {
-    if (!state.enabled || !state.pipEnabled || !isPipAllowedForCurrentPage()) return;
+    if (!canManagePipInCurrentDocument()) return;
     if (visibilityLock) return;
 
     visibilityLock = true;
@@ -270,8 +421,14 @@ const PipManager = (() => {
           needsRefresh = true;
           continue;
         }
-        if (mutation.type === "attributes" && mutation.target instanceof HTMLVideoElement) {
-          needsRefresh = true;
+        if (mutation.type === "attributes") {
+          if (mutation.target instanceof HTMLVideoElement) {
+            needsRefresh = true;
+            continue;
+          }
+          if (isYouTubePage() && mutation.target instanceof Element && mutation.target.id === "movie_player") {
+            needsRefresh = true;
+          }
         }
       }
       if (needsRefresh) scheduleRefresh(100);
@@ -281,7 +438,7 @@ const PipManager = (() => {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["paused", "readyState", "src", "autopictureinpicture"],
+        attributeFilter: ["paused", "readyState", "src", "class", "autopictureinpicture", "disablepictureinpicture"],
       });
     } catch (_) {}
   }
@@ -319,6 +476,9 @@ const PipManager = (() => {
 
     document.addEventListener("visibilitychange", onVisibilityChange, true);
     window.addEventListener("pageshow", () => scheduleRefresh(0), true);
+    window.addEventListener("yt-navigate-finish", () => scheduleRefresh(300), true);
+    window.addEventListener("yt-page-data-updated", () => scheduleRefresh(300), true);
+    window.addEventListener("yt-player-updated", () => scheduleRefresh(100), true);
 
     let hasNavigationApi = false;
     try {
@@ -364,7 +524,14 @@ const PipManager = (() => {
       return true;
     }
 
-    if (message.type === "PREPARE_AUTO_PIP" || message.type === "REFRESH_PIP_STATE") {
+    if (message.type === "PREPARE_AUTO_PIP") {
+      const result = prepareCurrentVideoForPip();
+      refreshVideos();
+      sendResponse?.(result);
+      return false;
+    }
+
+    if (message.type === "REFRESH_PIP_STATE") {
       refreshVideos();
       sendResponse?.({ success: true });
       return false;
