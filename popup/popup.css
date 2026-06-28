@@ -381,6 +381,29 @@ input:checked + .slider::before {
   background: transparent; /* Bỏ nền đặc đi để các nút nổi lên */
 }
 
+.pip-actions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: -4px 16px 16px 16px;
+  padding: 0;
+}
+
+.pip-status {
+  min-height: 15px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.pip-status.is-success {
+  color: #34d399;
+}
+
+.pip-status.is-error {
+  color: #fb7185;
+}
+
 /* =============================================
    STUDY BLOCKLIST SECTION
    ============================================= */
