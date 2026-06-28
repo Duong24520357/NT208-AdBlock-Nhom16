@@ -84,6 +84,8 @@ function sendRuntimeMessage(message) {
   });
 }
 
+// Doi thanh URL Render sau khi deploy, vi du:
+// const BACKEND_BASE_URL = "https://ten-app-cua-ban.onrender.com";
 const BACKEND_BASE_URL = "http://127.0.0.1:5000";
 let isDownloading = false;
 
@@ -113,6 +115,15 @@ function getCaptureBaseName(contentURL) {
   return getCaptureFilename(contentURL).replace(/\.png$/i, "");
 }
 
+function sanitizeDownloadFilename(name, fallback = "video") {
+  const safeName = String(name || fallback)
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+  return safeName || fallback;
+}
+
 function downloadBlob(blob, filename) {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(blob);
@@ -125,6 +136,26 @@ function downloadBlob(blob, filename) {
       (downloadId) => {
         const error = chrome.runtime.lastError;
         setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+        if (error) {
+          reject(new Error(error.message || "DOWNLOAD_FAILED"));
+          return;
+        }
+        resolve(downloadId);
+      },
+    );
+  });
+}
+
+function downloadUrl(url, filename) {
+  return new Promise((resolve, reject) => {
+    chrome.downloads.download(
+      {
+        url,
+        filename,
+        saveAs: true,
+      },
+      (downloadId) => {
+        const error = chrome.runtime.lastError;
         if (error) {
           reject(new Error(error.message || "DOWNLOAD_FAILED"));
           return;
@@ -496,24 +527,24 @@ async function startVideoDownload() {
 
   isDownloading = true;
   downloadBtn.disabled = true;
-  downloadStatus.textContent = "Đang gửi yêu cầu tải...";
+  downloadStatus.textContent = "Đang lấy link tải...";
   downloadStatus.classList.remove("is-error", "is-success");
 
   try {
-    const response = await fetch(`${BACKEND_BASE_URL}/download`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url }),
-    });
-
+    const params = new URLSearchParams({ url });
+    const response = await fetch(`${BACKEND_BASE_URL}/get-link?${params}`);
     const data = await response.json();
     if (!response.ok || data.error) {
-      throw new Error(data.error || "Tải video thất bại");
+      throw new Error(data.error || "Khong lay duoc link tai");
+    }
+    if (!data.download_url) {
+      throw new Error("Backend khong tra ve link tai");
     }
 
-    downloadStatus.textContent = `Đã tải: ${data.title || "video"}`;
+    const filename = `${sanitizeDownloadFilename(data.title)}.mp4`;
+    await downloadUrl(data.download_url, filename);
+
+    downloadStatus.textContent = `Dang tai ve may: ${data.title || "video"}`;
     downloadStatus.classList.remove("is-error");
     downloadStatus.classList.add("is-success");
     videoUrlInput.value = "";
