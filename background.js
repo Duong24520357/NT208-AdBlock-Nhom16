@@ -132,6 +132,21 @@ async function restoreAiOnOpenTabs() {
   );
 }
 
+const YOUTUBE_GUARD_SCRIPT_ID = "nt208-youtube-page-guard";
+const YOUTUBE_GUARD_MATCHES = [
+  "*://youtube.com/*",
+  "*://*.youtube.com/*",
+  "*://youtube-nocookie.com/*",
+  "*://*.youtube-nocookie.com/*",
+  "*://youtubekids.com/*",
+  "*://*.youtubekids.com/*",
+];
+const YOUTUBE_GUARD_HOSTS = [
+  "youtube.com",
+  "youtube-nocookie.com",
+  "youtubekids.com",
+];
+
 // Hàm áp dụng state và declarativceNetRequest
 async function applyState() {
   if (state.enabled) {
@@ -143,6 +158,8 @@ async function applyState() {
       disableRulesetIds: ["ruleset_1"],
     });
   }
+
+  await updateYouTubeGuardRegistration();
 }
 
 // Hàm tải state đã lưu từ storage
@@ -184,6 +201,63 @@ function normalizeDomain(input) {
     return hostname || null;
   } catch {
     return null;
+  }
+}
+
+function getYouTubeGuardExcludeMatches() {
+  const whitelist = Array.isArray(state.whitelist) ? state.whitelist : [];
+  const excludeMatches = new Set();
+
+  whitelist.forEach((domain) => {
+    const hostname = normalizeDomain(domain);
+    if (!hostname) return;
+
+    const isYouTubeScope = YOUTUBE_GUARD_HOSTS.some(
+      (target) =>
+        isHostnameInScope(hostname, target) ||
+        isHostnameInScope(target, hostname),
+    );
+
+    if (!isYouTubeScope) return;
+
+    excludeMatches.add(`*://${hostname}/*`);
+    excludeMatches.add(`*://*.${hostname}/*`);
+  });
+
+  return Array.from(excludeMatches);
+}
+
+async function updateYouTubeGuardRegistration() {
+  if (!chrome.scripting?.registerContentScripts) return;
+
+  try {
+    await chrome.scripting.unregisterContentScripts({
+      ids: [YOUTUBE_GUARD_SCRIPT_ID],
+    });
+  } catch {
+    // No existing dynamic script is fine.
+  }
+
+  if (!state.enabled) return;
+
+  const youtubeGuard = {
+    id: YOUTUBE_GUARD_SCRIPT_ID,
+    matches: YOUTUBE_GUARD_MATCHES,
+    js: ["blocking/youtube-page-guard.js"],
+    runAt: "document_start",
+    allFrames: true,
+    world: "MAIN",
+  };
+
+  const excludeMatches = getYouTubeGuardExcludeMatches();
+  if (excludeMatches.length > 0) {
+    youtubeGuard.excludeMatches = excludeMatches;
+  }
+
+  try {
+    await chrome.scripting.registerContentScripts([youtubeGuard]);
+  } catch (error) {
+    console.warn("[AdBlock] Không đăng ký được YouTube guard:", error);
   }
 }
 
@@ -242,7 +316,7 @@ function delay(ms) {
 }
 
 let lastCaptureAt = 0;
-const CAPTURE_MIN_INTERVAL_MS = 650;
+const CAPTURE_MIN_INTERVAL_MS = 1100;
 
 async function captureVisibleTabWithThrottle(windowId, retries = 3) {
   const elapsed = Date.now() - lastCaptureAt;
@@ -422,6 +496,7 @@ async function toggleWhitelist(hostname) {
   }
 
   await updateWhitelistRules();
+  await updateYouTubeGuardRegistration();
   await saveState();
 }
 
@@ -600,7 +675,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       {
         // Content script requests the background to capture the visible viewport
         // We use sender.tab.windowId to call captureVisibleTabWithThrottle
-        const winId = sender.tab?.windowId;
+        const winId = message.windowId ?? sender.tab?.windowId ?? lastActiveWindowId;
         if (typeof winId === "undefined") {
           sendResponse({ ok: false, reason: "NO_WINDOW_ID" });
           return false;

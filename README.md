@@ -290,3 +290,4 @@ Dự án tham khảo và lấy cảm hứng từ:
 - [chrome-auto-pip](https://github.com/apotenza92/chrome-auto-pip) — apotenza92 (MIT)
 
 Toàn bộ mã trong repo này được phát triển độc lập cho mục đích học thuật.
+## Chúng em đã biết làm web và hiểu hệ thống web hoạt động như thế nào.
