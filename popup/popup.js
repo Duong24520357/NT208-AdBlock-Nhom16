@@ -1148,16 +1148,18 @@ const btnExport = document.getElementById('btnExport');
 const btnImport = document.getElementById('btnImport');
 const fileImport = document.getElementById('fileImport');
 
+// ---------------------------------------------
+// 1. CHỨC NĂNG XUẤT (EXPORT) ĐÃ FIX LỖI
+// ---------------------------------------------
 if (btnExport) {
     btnExport.addEventListener('click', async () => {
         try {
-            // Lấy URL hiện tại để đặt tên file cho ngầu
-            const tabs = await queryTabs({active: true, currentWindow: true});
+            // Lấy URL tab hiện tại
+            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
             if (!tabs || tabs.length === 0) return;
-            const currentUrl = new URL(tabs[0].url);
-
-            // Bắt đầu quét Cookies
-            chrome.cookies.getAll({domain: currentUrl.hostname}, async (cookies) => {
+            
+            // Quét Cookies theo URL để không bỏ sót
+            chrome.cookies.getAll({ url: tabs[0].url }, async (cookies) => {
                 if (cookies.length === 0) {
                     alert("⚠️ Trang này không có Cookies nào để xuất!");
                     return;
@@ -1174,18 +1176,28 @@ if (btnExport) {
                 // Tải file xuống
                 const blob = new Blob([encryptedText], {type: "text/plain"});
                 const url = URL.createObjectURL(blob);
+                
+                // Lấy hostname mới nhất để đặt tên file
+                const hostname = new URL(tabs[0].url).hostname.replace("www.", "");
+
                 chrome.downloads.download({
                     url: url,
-                    filename: `SafeCookies_${currentUrl.hostname}.lock` 
+                    filename: `SafeCookies_${hostname}.lock`,
+                    saveAs: true // Bật hộp thoại hỏi nơi lưu
+                }, () => {
+                    URL.revokeObjectURL(url); // Dọn dẹp RAM
                 });
             });
         } catch (error) {
             console.error("Lỗi xuất Cookie:", error);
-            alert("❌ Lỗi khi xuất file!");
+            alert("❌ Lỗi khi xuất file: " + error.message);
         }
     });
 }
 
+// ---------------------------------------------
+// 2. CHỨC NĂNG NHẬP (IMPORT) GIỮ NGUYÊN
+// ---------------------------------------------
 if (btnImport && fileImport) {
     // Bấm nút Import thì giả lập click vào cái input File bị ẩn
     btnImport.addEventListener('click', () => fileImport.click());
@@ -1210,22 +1222,43 @@ if (btnImport && fileImport) {
                 const decryptedJson = await CryptoModule.decrypt(encryptedText, password);
                 const cookies = JSON.parse(decryptedJson);
 
-                // Nạp đạn vào trình duyệt
-                cookies.forEach(cookie => {
-                    let url = "http" + (cookie.secure ? "s" : "") + "://" + cookie.domain + cookie.path;
-                    chrome.cookies.set({
-                        url: url,
-                        name: cookie.name,
-                        value: cookie.value,
-                        path: cookie.path,
-                        secure: cookie.secure,
-                        httpOnly: cookie.httpOnly,
-                        expirationDate: cookie.expirationDate
+               // Nạp đạn vào trình duyệt (Phiên bản "Vượt rào" mọi loại Cookie khó tính)
+                const setCookiePromises = cookies.map(cookie => {
+                    return new Promise((resolve) => {
+                        let cleanDomain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
+                        let url = (cookie.secure ? "https://" : "http://") + cleanDomain + cookie.path;
+                        
+                        // Khởi tạo khung Cookie chuẩn chỉ
+                        let newCookie = {
+                            url: url,
+                            name: cookie.name,
+                            value: cookie.value,
+                            path: cookie.path,
+                            secure: cookie.secure,
+                            httpOnly: cookie.httpOnly,
+                            sameSite: cookie.sameSite, // Phải có cờ này để fix lỗi cookie "datr"
+                            expirationDate: cookie.expirationDate
+                        };
+
+                        // Tuyệt chiêu: Chỉ truyền domain vào nếu nó KHÔNG PHẢI là hostOnly
+                        if (!cookie.hostOnly) {
+                            newCookie.domain = cookie.domain;
+                        }
+
+                        chrome.cookies.set(newCookie, (setCookie) => {
+                            if (chrome.runtime.lastError) {
+                                console.error("Lỗi nạp Cookie [", cookie.name, "]:", chrome.runtime.lastError.message);
+                            }
+                            resolve(); // Dù thành công hay lỗi viên này, vẫn cho qua để nạp viên khác
+                        });
                     });
                 });
+
+                // Chờ nạp xong TOÀN BỘ Cookies rồi mới F5 trang
+                await Promise.all(setCookiePromises);
                 
                 alert("✅ Nhập phiên đăng nhập thành công! Trang web sẽ tự tải lại.");
-                chrome.tabs.reload(); 
+                chrome.tabs.reload();
             } catch (error) {
                 alert("❌ LỖI GIẢI MÃ: " + error.message);
             }
