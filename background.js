@@ -8,6 +8,8 @@ const defaultState = {
   blockedDomains: [],
   blockedPerTab: {},
   totalBlocked: 0,
+  mediaVolume: 100,
+  mediaBrightness: 100
 };
 
 let state = { ...defaultState };
@@ -180,6 +182,8 @@ async function saveState() {
       whitelist: state.whitelist,
       blockedDomains: state.blockedDomains,
       totalBlocked: state.totalBlocked,
+      mediaVolume: state.mediaVolume,
+      mediaBrightness: state.mediaBrightness,
     },
   });
 }
@@ -527,6 +531,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     state.blockedPerTab[tabId] = 0;
     updateBadge(tabId);
   }
+  // FIX: When tab is fully loaded, send the current media state to apply.
+  if (changeInfo.status === "complete" && tabId && /^https?:\/\//.test(changeInfo.url || "")) {
+      chrome.tabs.sendMessage(
+        tabId,
+        {
+          type: "APPLY_MEDIA_STATE",
+          mediaVolume: state.mediaVolume,
+          mediaBrightness: state.mediaBrightness
+        },
+        () => void chrome.runtime.lastError
+      );
+  }
 });
 
 // Dọn dẹp khi tab bị đóng
@@ -549,6 +565,19 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
   if (activeInfo?.tabId) {
     refreshPipInTab(activeInfo.tabId);
+  }
+
+  // FIX: When a tab becomes active, send the current media state to apply.
+  if (activeInfo?.tabId) {
+    chrome.tabs.sendMessage(
+      activeInfo.tabId,
+      {
+        type: "APPLY_MEDIA_STATE",
+        mediaVolume: state.mediaVolume,
+        mediaBrightness: state.mediaBrightness
+      },
+      () => void chrome.runtime.lastError
+    );
   }
 
   if (!state.pipEnabled || !previousTabId || previousTabId === activeInfo?.tabId) {
@@ -616,6 +645,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             hostname: hostname,
             blockedDomains,
             studyBlocked: blockedDomains.includes(hostname),
+            mediaVolume: state.mediaVolume,
+            mediaBrightness: state.mediaBrightness,
           });
         };
 
@@ -721,5 +752,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       sendResponse({ success: true });
       break;
+
+    // Media Controller: Receive command from popup, update state, and forward to content script
+    case "SET_VOLUME":
+    case "SET_BRIGHTNESS":
+    case "RESET_MEDIA":
+      {
+        const tabId = message.tabId || sender.tab?.id;
+        
+        // Cập nhật và lưu state media vào background
+        if (message.type === "SET_VOLUME") {
+          state.mediaVolume = message.value;
+        } else if (message.type === "SET_BRIGHTNESS") {
+          state.mediaBrightness = message.value;
+        } else if (message.type === "RESET_MEDIA") {
+          state.mediaVolume = 100;
+          state.mediaBrightness = 100;
+        }
+        saveState();
+
+        if (tabId) {
+          // Chuyển tiếp message đến content script của tab tương ứng
+          chrome.tabs.sendMessage(tabId, {
+            type: message.type,
+            value: message.value,
+          }, () => void chrome.runtime.lastError);
+          // Also send the full state to ensure sync
+          chrome.tabs.sendMessage(tabId, {
+            type: "APPLY_MEDIA_STATE",
+            mediaVolume: state.mediaVolume,
+            mediaBrightness: state.mediaBrightness
+          }, () => void chrome.runtime.lastError);
+        }
+        sendResponse({ success: true });
+      }
+      return true;
   }
 });

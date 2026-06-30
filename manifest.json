@@ -30,6 +30,7 @@
                 "<all_urls>"
             ],
             "js": [
+                "media/media.js",
                 "blocking/ad-constants.js",
                 "blocking/ad-heuristics.js",
                 "blocking/cosmetic-engine.js",
@@ -38,9 +39,9 @@
                 "blocking/element-picker.js",
                 "blocking/dom-observer.js",
                 "pip/pip-manager.js",
-                "studocu/update-inter.js",
-                "studocu/viewdocs.js",
-                "studocu/remove-banner.js",
+                "studocu/update-inter.js", 
+                "studocu/viewdocs.js", 
+                "studocu/remove-banner.js", 
                 "content.js"
             ],
             "all_frames": true,
@@ -90,13 +91,7 @@
             ]
         },
         {
-            "resources": [
-                "sidebar/dist/**"
-            ],
-            "matches": [
-                "<all_urls>"
-            ]
-        }
+            "resources": ["sidebar/dist/**"], "matches": ["<all_urls>"] }
     ],
     "content_security_policy": {
         "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:5000 http://localhost:5000 http://127.0.0.1:11434 http://localhost:11434"
