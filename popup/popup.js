@@ -44,6 +44,9 @@ const CryptoModule = {
 // =============================================
 // BƯỚC 1: LẤY CÁC DOM ELEMENTS
 // =============================================
+const pomoTimer = document.getElementById("pomo-timer");
+const pomoStatus = document.getElementById("pomo-status");
+const pomoToggleBtn = document.getElementById("pomo-toggle-btn");
 const toggleSwitch = document.getElementById("toggle-switch");
 const toggleLabel = document.getElementById("toggle-label");
 const pipToggleSwitch = document.getElementById("pip-toggle-switch");
@@ -342,6 +345,33 @@ function normalizeDomain(input) {
     return null;
   }
 }
+
+// --- Render Pomodoro ---
+  if (pomoTimer && pomoStatus && pomoToggleBtn) {
+    if (state.pomodoroPhase === 'idle' || !state.pomodoroPhase) {
+      pomoTimer.textContent = "25:00";
+      pomoTimer.style.color = "#e74c3c";
+      pomoStatus.textContent = "Chưa bắt đầu";
+      pomoToggleBtn.textContent = "Bắt đầu học (25p)";
+      pomoToggleBtn.style.background = ""; 
+    } else {
+      const timeLeft = (state.pomodoroEndTime || 0) - Date.now();
+      const totalSecs = Math.max(0, Math.floor(timeLeft / 1000));
+      pomoTimer.textContent = `${String(Math.floor(totalSecs / 60)).padStart(2, '0')}:${String(totalSecs % 60).padStart(2, '0')}`;
+      
+      if (state.pomodoroPhase === 'work') {
+        pomoTimer.style.color = "#e74c3c";
+        pomoStatus.textContent = "🔥 Đang học (Đã Khóa Web)";
+        pomoToggleBtn.textContent = "Dừng Pomodoro";
+        pomoToggleBtn.style.background = "#e74c3c"; 
+      } else if (state.pomodoroPhase === 'break') {
+        pomoTimer.style.color = "#2ecc71";
+        pomoStatus.textContent = "☕ Đang nghỉ (Đã Mở Web)";
+        pomoToggleBtn.textContent = "Dừng Pomodoro";
+        pomoToggleBtn.style.background = "#e74c3c";
+      }
+    }
+  }
 
 function renderBlockedDomains(state) {
   const domains = Array.isArray(state?.blockedDomains)
@@ -1232,5 +1262,13 @@ if (btnImport && fileImport) {
             event.target.value = ""; 
         };
         reader.readAsText(file);
+    });
+}
+
+// BƯỚC MỚI: XỬ LÝ NÚT POMODORO
+if (pomoToggleBtn) {
+    pomoToggleBtn.addEventListener("click", async () => {
+        await sendRuntimeMessage({ type: "TOGGLE_POMODORO" });
+        await loadState(); // Ép UI cập nhật ngay lập tức
     });
 }

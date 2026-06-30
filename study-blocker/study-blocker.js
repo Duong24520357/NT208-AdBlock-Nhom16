@@ -129,15 +129,20 @@
         }
     }
 
-    async function initPrecheck() {
+   async function initPrecheck() {
         try {
             if (!window.StudyBlocker?.isTopFrame?.()) return;
             const currentHostname = window.location.hostname;
             const saved = await chrome.storage.local.get("adblockState");
             const adblockState = saved?.adblockState || {};
-            const enabled = adblockState.enabled !== false; // default true
+            const enabled = adblockState.enabled !== false; 
             const blockedDomains = adblockState.blockedDomains || [];
-            if (enabled && window.StudyBlocker?.isHostnameBlocked?.(currentHostname, blockedDomains)) {
+            
+            // THÊM 1 DÒNG NÀY ĐỂ KIỂM TRA GIỜ NGHỈ
+            const isBreakTime = adblockState.pomodoroPhase === 'break';
+            
+            // Nếu Bật AdBlock + KHÔNG phải giờ nghỉ + Domain bị chặn -> THÌ MỚI KHÓA
+            if (enabled && !isBreakTime && window.StudyBlocker?.isHostnameBlocked?.(currentHostname, blockedDomains)) {
                 enforceStudyBlocked(currentHostname);
             }
         } catch {

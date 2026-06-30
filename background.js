@@ -723,3 +723,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
   }
 });
+
+// ==========================================
+// ĐỘNG CƠ POMODORO (CHẠY NGẦM BẰNG ALARM)
+// ==========================================
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+    if (message.type === "TOGGLE_POMODORO") {
+        if (state.pomodoroPhase === 'idle') {
+            state.pomodoroPhase = 'work';
+            state.pomodoroEndTime = Date.now() + 25 * 60 * 1000; // 25 phút
+            chrome.alarms.create("pomodoro_timer", { delayInMinutes: 25 });
+        } else {
+            state.pomodoroPhase = 'idle';
+            state.pomodoroEndTime = 0;
+            chrome.alarms.clear("pomodoro_timer");
+        }
+        await saveState();
+        reloadBlockedTabs();
+        sendResponse({ success: true });
+    }
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name === "pomodoro_timer") {
+        await loadState();
+        if (state.pomodoroPhase === 'work') {
+            state.pomodoroPhase = 'break';
+            state.pomodoroEndTime = Date.now() + 5 * 60 * 1000; // 5 phút nghỉ
+            chrome.alarms.create("pomodoro_timer", { delayInMinutes: 5 });
+            chrome.notifications.create({
+                type: "basic", iconUrl: "icons/icon48.png",
+                title: "🍅 Hết giờ học!", message: "Nghỉ ngơi 5 phút nhé. Các web giải trí đã được MỞ KHÓA."
+            });
+        } else if (state.pomodoroPhase === 'break') {
+            state.pomodoroPhase = 'work';
+            state.pomodoroEndTime = Date.now() + 25 * 60 * 1000; // 25 phút học
+            chrome.alarms.create("pomodoro_timer", { delayInMinutes: 25 });
+            chrome.notifications.create({
+                type: "basic", iconUrl: "icons/icon48.png",
+                title: "🍅 Hết giờ nghỉ!", message: "Quay lại học thôi. Các web giải trí đã bị KHÓA."
+            });
+        }
+        await saveState();
+        reloadBlockedTabs(); // Ép tải lại trang để nhả/khóa web ngay lập tức
+    }
+});
+
+function reloadBlockedTabs() {
+    chrome.tabs.query({}, (tabs) => {
+        tabs.forEach(tab => {
+            const hostname = normalizeDomain(tab.url);
+            if (hostname && state.blockedDomains.includes(hostname)) {
+                chrome.tabs.reload(tab.id);
+            }
+        });
+    });
+}
