@@ -98,7 +98,7 @@
             ]
         }
     ],
-    "content_security_policy": {
-        "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:5000 http://localhost:5000 http://127.0.0.1:11434 http://localhost:11434"
+   "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:5000 http://localhost:5000 http://127.0.0.1:11434 http://localhost:11434 https://openphish.com https://raw.githubusercontent.com"
     }
 }
