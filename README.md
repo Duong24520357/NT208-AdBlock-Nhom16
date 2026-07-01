@@ -282,10 +282,10 @@ Chế độ tập trung học tập:
 ### 1. Tỷ lệ đóng góp của các thành viên
 | STT | Họ và tên | MSSV | Nhiệm vụ | Tỷ lệ đóng góp |
 |---|---|---|---|---|
-| 1 | Đỗ Tến Dương | 24520357 | AntiPhishing, Quản lí cookies phiên đăng nhập |  |
-| 2 | Đặng Trần Khánh Duy | 24520365 | Full-Page Capture, Trợ lý AI đa năng, tải video youtube | |
-| 3 | Lê Quốc Dương | 24520358 | AdBlock, Studocu Bypass, Auto PiP, Study Blocker | |
-| 4 | Lê Huy Phát | 24521299 |  |  |
+| 1 | Đỗ Tến Dương | 24520357 | AntiPhishing, Quản lí cookies phiên đăng nhập | 25%  |
+| 2 | Đặng Trần Khánh Duy | 24520365 | Full-Page Capture, Trợ lý AI đa năng, Tải video youtube | 25% |
+| 3 | Lê Quốc Dương | 24520358 | AdBlock, Studocu Bypass, Auto PiP, Study Blocker | 25% |
+| 4 | Lê Huy Phát | 24521299 | Note web, tùy chỉnh volumn, ánh sáng của từng web  | 25% |
 *(Tổng tỷ lệ đóng góp: 100%)*
 
 ### 2. Links Tài nguyên đánh giá
