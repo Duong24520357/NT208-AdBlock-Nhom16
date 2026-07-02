@@ -2,42 +2,6 @@ const StudyBlocker = window.StudyBlocker || {};
 const StudyUI = window.StudyUI || {};
 const CosmeticEngine = window.CosmeticEngine || {};
 
-// FIX: Create a self-contained media controller logic within the content script
-const MediaController = (() => {
-  let mediaState = { volume: 100, brightness: 100 };
-
-  function applyMediaState(volume, brightness) {
-    // Update internal state
-    mediaState.volume = volume;
-    mediaState.brightness = brightness;
-
-    // Apply volume to all media elements
-    const volumeLevel = Math.max(0, Math.min(100, volume)) / 100;
-    document.querySelectorAll("video, audio").forEach(media => {
-      try {
-        media.volume = volumeLevel;
-        if (volumeLevel > 0 && media.muted) {
-          media.muted = false;
-        }
-      } catch (e) { /* ignore */ }
-    });
-
-    // Apply brightness to the entire page
-    const brightnessLevel = Math.max(0, Math.min(200, brightness));
-    document.documentElement.style.filter = `brightness(${brightnessLevel}%)`;
-  }
-
-  // Use MutationObserver to apply state to dynamically added videos
-  const observer = new MutationObserver(() => {
-    applyMediaState(mediaState.volume, mediaState.brightness);
-  });
-
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  return { applyMediaState };
-})();
-
-
 // Hàm khởi tạo
 async function initialize() {
   try {
@@ -253,24 +217,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       window.ElementPicker?.start?.();
       sendResponse({ success: true });
       return false;
-    
-    // FIX: Handle media state messages from the background script
-    case "INIT_MEDIA": // Legacy, now handled by APPLY_MEDIA_STATE
-    case "APPLY_MEDIA_STATE":
-      if (typeof message.mediaVolume === 'number' && typeof message.mediaBrightness === 'number') {
-        MediaController.applyMediaState(message.mediaVolume, message.mediaBrightness);
-      }
-      sendResponse({ success: true });
-      return true;
 
-    case "SET_VOLUME":
-    case "SET_BRIGHTNESS":
-    case "RESET_MEDIA":
-      // The background script will update state and send APPLY_MEDIA_STATE
-      // No direct action needed here, but we acknowledge the message.
-      sendResponse({ success: true });
-      return true;
-    
     default:
       return false;
   }
