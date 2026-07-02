@@ -15,6 +15,7 @@ const hostnameLabel = document.getElementById("hostname-label");
 const statusDot = document.getElementById("status-dot");
 const blockSiteBtn = document.getElementById("blocksite-btn");
 const pipNowBtn = document.getElementById("pip-now-btn");
+const pipRotateBtn = document.getElementById("pip-rotate-btn");
 const pipStatus = document.getElementById("pip-status");
 const blockDomainInput = document.getElementById("block-domain-input");
 const blockAddBtn = document.getElementById("block-add-btn");
@@ -427,6 +428,11 @@ function renderUI(state) {
     pipNowBtn.style.opacity = pipNowBtn.disabled ? "0.5" : "1";
   }
 
+  if (pipRotateBtn) {
+    pipRotateBtn.disabled = !state.enabled || state.pipEnabled === false;
+    pipRotateBtn.style.opacity = pipRotateBtn.disabled ? "0.5" : "1";
+  }
+
   if (pipStatus && state.pipEnabled === false) {
     pipStatus.textContent = "PiP đang tắt.";
     pipStatus.classList.remove("is-success");
@@ -810,6 +816,71 @@ if (pipNowBtn) {
         pipStatus.textContent = "Trang này chưa sẵn sàng nhận lệnh PiP.";
         pipStatus.classList.remove("is-success");
         pipStatus.classList.add("is-error");
+      }
+    }
+  });
+}
+
+if (pipRotateBtn) {
+  pipRotateBtn.addEventListener("click", async () => {
+    try {
+      if (!currentTab) return;
+
+      if (pipStatus) {
+        pipStatus.dataset.busy = "true";
+        pipStatus.textContent = "Đang xoay PiP...";
+        pipStatus.classList.remove("is-success", "is-error");
+      }
+
+      const response = await sendRuntimeMessage({
+        type: "ROTATE_PIP_VIDEO",
+        tabId: currentTab.id,
+      });
+
+      if (!response?.success) {
+        const reason =
+          response?.error === "NO_VIDEO"
+            ? "Không tìm thấy video để xoay."
+            : response?.error === "PIP_DISABLED"
+              ? "PiP đang tắt."
+              : response?.error === "PIP_NOT_ALLOWED"
+                ? "Trang này không cho phép PiP."
+                : response?.error === "ROTATION_NOT_SUPPORTED" ||
+                    response?.error === "SecurityError"
+                  ? "Video này không hỗ trợ xoay PiP."
+                  : "Không xoay được PiP.";
+
+        if (pipStatus) {
+          pipStatus.textContent = reason;
+          pipStatus.classList.remove("is-success");
+          pipStatus.classList.add("is-error");
+          setTimeout(() => {
+            delete pipStatus.dataset.busy;
+          }, 1600);
+        }
+        return;
+      }
+
+      if (pipStatus) {
+        const rotation = Number(response.rotation) || 0;
+        pipStatus.textContent = response.active
+          ? `Đã xoay PiP: ${rotation}°.`
+          : `Đã đặt góc PiP: ${rotation}°.`;
+        pipStatus.classList.remove("is-error");
+        pipStatus.classList.add("is-success");
+        setTimeout(() => {
+          delete pipStatus.dataset.busy;
+        }, 1600);
+      }
+    } catch (error) {
+      console.error("[Popup] Lỗi xoay PiP:", error);
+      if (pipStatus) {
+        pipStatus.textContent = "Trang này chưa sẵn sàng nhận lệnh xoay PiP.";
+        pipStatus.classList.remove("is-success");
+        pipStatus.classList.add("is-error");
+        setTimeout(() => {
+          delete pipStatus.dataset.busy;
+        }, 1600);
       }
     }
   });

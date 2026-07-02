@@ -1,6 +1,10 @@
 const PipManager = (() => {
   const retryTimers = new WeakMap();
+  const ROTATED_PIP_OUTPUT_ATTR = "data-auto-pip-rotated-output";
+
   let preparedPipVideo = null;
+  let pipRotation = 0;
+  let rotatedPipSession = null;
 
   const state = {
     enabled: true,
@@ -73,6 +77,419 @@ const PipManager = (() => {
     );
   }
 
+  function normalizeRotation(rotation) {
+    const degrees = Number(rotation) || 0;
+    return ((Math.round(degrees / 90) * 90) % 360 + 360) % 360;
+  }
+
+  function isRotatedPipOutputVideo(video) {
+    return !!video && typeof video.hasAttribute === "function" && video.hasAttribute(ROTATED_PIP_OUTPUT_ATTR);
+  }
+
+  function getSourceVideoSize(source) {
+    let rect = null;
+    try { rect = source.getBoundingClientRect(); } catch (_) {}
+
+    const sourceWidth = Math.max(
+      1,
+      Math.round(source.videoWidth || source.clientWidth || rect?.width || 640),
+    );
+    const sourceHeight = Math.max(
+      1,
+      Math.round(source.videoHeight || source.clientHeight || rect?.height || 360),
+    );
+    const isSideways = pipRotation === 90 || pipRotation === 270;
+
+    return {
+      sourceWidth,
+      sourceHeight,
+      canvasWidth: isSideways ? sourceHeight : sourceWidth,
+      canvasHeight: isSideways ? sourceWidth : sourceHeight,
+    };
+  }
+
+  function ensureRotatedCanvasSize(session) {
+    const size = getSourceVideoSize(session.source);
+    if (session.canvas.width !== size.canvasWidth) session.canvas.width = size.canvasWidth;
+    if (session.canvas.height !== size.canvasHeight) session.canvas.height = size.canvasHeight;
+    try {
+      session.video.width = size.canvasWidth;
+      session.video.height = size.canvasHeight;
+    } catch (_) {}
+    return size;
+  }
+
+  function drawRotatedFrame(session) {
+    if (!session || session.stopped || !session.source || session.source.readyState < 2) {
+      return false;
+    }
+
+    const { source, canvas, context } = session;
+    const size = ensureRotatedCanvasSize(session);
+
+    try {
+      context.save();
+      context.fillStyle = "#000000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (pipRotation === 90) {
+        context.translate(canvas.width, 0);
+        context.rotate(Math.PI / 2);
+      } else if (pipRotation === 180) {
+        context.translate(canvas.width, canvas.height);
+        context.rotate(Math.PI);
+      } else if (pipRotation === 270) {
+        context.translate(0, canvas.height);
+        context.rotate(-Math.PI / 2);
+      }
+
+      context.drawImage(source, 0, 0, size.sourceWidth, size.sourceHeight);
+      context.restore();
+      session.lastDrawError = null;
+      return true;
+    } catch (error) {
+      try { context.restore(); } catch (_) {}
+      session.lastDrawError = error;
+      return false;
+    }
+  }
+
+  function queueRotatedFrame(session) {
+    if (
+      !session ||
+      session.stopped ||
+      session.frameRequestId !== null ||
+      typeof session.source.requestVideoFrameCallback !== "function"
+    ) {
+      return;
+    }
+
+    session.frameRequestId = session.source.requestVideoFrameCallback(() => {
+      session.frameRequestId = null;
+      drawRotatedFrame(session);
+      queueRotatedFrame(session);
+    });
+  }
+
+  function startRotatedFrameLoop(session) {
+    drawRotatedFrame(session);
+
+    if (typeof session.source.requestVideoFrameCallback === "function") {
+      queueRotatedFrame(session);
+      return;
+    }
+
+    session.timerId = setInterval(() => {
+      drawRotatedFrame(session);
+    }, 33);
+  }
+
+  function cleanupRotatedPipSession() {
+    const session = rotatedPipSession;
+    if (!session) return;
+
+    if (document.pictureInPictureElement === session.video) {
+      return;
+    }
+
+    rotatedPipSession = null;
+    session.stopped = true;
+
+    if (
+      session.frameRequestId !== null &&
+      typeof session.source.cancelVideoFrameCallback === "function"
+    ) {
+      try { session.source.cancelVideoFrameCallback(session.frameRequestId); } catch (_) {}
+    }
+
+    if (session.timerId !== null) {
+      clearInterval(session.timerId);
+    }
+
+    try { session.removeListeners?.(); } catch (_) {}
+    try { session.video.pause(); } catch (_) {}
+    try { session.stream?.getTracks?.().forEach((track) => track.stop()); } catch (_) {}
+    try { session.video.srcObject = null; } catch (_) {}
+    try { session.video.remove(); } catch (_) {}
+  }
+
+  async function createRotatedPipSession(source) {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context || typeof canvas.captureStream !== "function") {
+      const error = new Error("ROTATION_NOT_SUPPORTED");
+      error.code = "ROTATION_NOT_SUPPORTED";
+      throw error;
+    }
+
+    const video = document.createElement("video");
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.disablePictureInPicture = false;
+    video.setAttribute(ROTATED_PIP_OUTPUT_ATTR, "");
+    video.setAttribute("data-auto-pip-disabled", "");
+    video.setAttribute("aria-hidden", "true");
+    video.style.cssText = [
+      "position:fixed",
+      "left:0",
+      "top:0",
+      "width:1px",
+      "height:1px",
+      "opacity:0",
+      "pointer-events:none",
+      "z-index:-2147483648",
+    ].join(";");
+
+    const session = {
+      source,
+      canvas,
+      context,
+      video,
+      stream: null,
+      frameRequestId: null,
+      timerId: null,
+      lastDrawError: null,
+      proxyControls: false,
+      syncingFromSource: false,
+      stopped: false,
+      removeListeners: null,
+    };
+
+    ensureRotatedCanvasSize(session);
+    drawRotatedFrame(session);
+
+    try {
+      session.stream = canvas.captureStream(30);
+    } catch (error) {
+      error.code = error.code || "ROTATION_NOT_SUPPORTED";
+      throw error;
+    }
+
+    video.srcObject = session.stream;
+
+    const onSourcePlay = () => {
+      if (session.stopped) return;
+      session.syncingFromSource = true;
+      video.play().catch(() => {}).finally(() => {
+        session.syncingFromSource = false;
+      });
+      drawRotatedFrame(session);
+      queueRotatedFrame(session);
+    };
+    const onSourcePause = () => {
+      if (session.stopped || video.paused) return;
+      session.syncingFromSource = true;
+      try { video.pause(); } catch (_) {}
+      session.syncingFromSource = false;
+      drawRotatedFrame(session);
+    };
+    const onSourceResize = () => {
+      if (session.stopped) return;
+      ensureRotatedCanvasSize(session);
+      drawRotatedFrame(session);
+    };
+    const onOutputPlay = () => {
+      if (!session.proxyControls || session.syncingFromSource || session.stopped) return;
+      if (source.paused && !source.ended) {
+        source.play().catch(() => {});
+      }
+    };
+    const onOutputPause = () => {
+      if (!session.proxyControls || session.syncingFromSource || session.stopped) return;
+      if (!source.paused && !source.ended) {
+        try { source.pause(); } catch (_) {}
+      }
+    };
+
+    source.addEventListener("play", onSourcePlay);
+    source.addEventListener("playing", onSourcePlay);
+    source.addEventListener("pause", onSourcePause);
+    source.addEventListener("ended", onSourcePause);
+    source.addEventListener("resize", onSourceResize);
+    video.addEventListener("play", onOutputPlay);
+    video.addEventListener("pause", onOutputPause);
+
+    session.removeListeners = () => {
+      source.removeEventListener("play", onSourcePlay);
+      source.removeEventListener("playing", onSourcePlay);
+      source.removeEventListener("pause", onSourcePause);
+      source.removeEventListener("ended", onSourcePause);
+      source.removeEventListener("resize", onSourceResize);
+      video.removeEventListener("play", onOutputPlay);
+      video.removeEventListener("pause", onOutputPause);
+    };
+
+    const host = document.body || document.documentElement;
+    host.appendChild(video);
+    rotatedPipSession = session;
+    startRotatedFrameLoop(session);
+
+    try {
+      await video.play();
+      session.proxyControls = true;
+    } catch (error) {
+      cleanupRotatedPipSession();
+      throw error;
+    }
+
+    return session;
+  }
+
+  async function ensureRotatedPipSession(source) {
+    if (rotatedPipSession && rotatedPipSession.source === source && !rotatedPipSession.stopped) {
+      ensureRotatedCanvasSize(rotatedPipSession);
+      drawRotatedFrame(rotatedPipSession);
+      queueRotatedFrame(rotatedPipSession);
+      return rotatedPipSession;
+    }
+
+    cleanupRotatedPipSession();
+    return createRotatedPipSession(source);
+  }
+
+  function getActivePipSourceVideo() {
+    const pipElement = document.pictureInPictureElement;
+    if (!pipElement) return null;
+
+    if (rotatedPipSession && pipElement === rotatedPipSession.video) {
+      return rotatedPipSession.source;
+    }
+
+    if (pipElement instanceof HTMLVideoElement && !isRotatedPipOutputVideo(pipElement)) {
+      return pipElement;
+    }
+
+    return null;
+  }
+
+  async function requestRotatedPictureInPicture(source) {
+    const session = await ensureRotatedPipSession(source);
+    const pipElement = document.pictureInPictureElement;
+
+    if (pipElement === session.video) {
+      return;
+    }
+
+    if (pipElement) {
+      try {
+        await session.video.requestPictureInPicture();
+        return;
+      } catch (error) {
+        if (error?.name !== "InvalidStateError") {
+          throw error;
+        }
+      }
+      await tryExitPip();
+    }
+
+    await session.video.requestPictureInPicture();
+  }
+
+  async function requestNativePictureInPicture(source) {
+    const pipElement = document.pictureInPictureElement;
+
+    if (pipElement === source) {
+      cleanupRotatedPipSession();
+      return;
+    }
+
+    if (pipElement) {
+      try {
+        await source.requestPictureInPicture();
+        cleanupRotatedPipSession();
+        return;
+      } catch (error) {
+        if (error?.name !== "InvalidStateError") {
+          throw error;
+        }
+      }
+      await tryExitPip();
+    }
+
+    await source.requestPictureInPicture();
+    cleanupRotatedPipSession();
+  }
+
+  async function requestPictureInPictureForSource(source) {
+    if (pipRotation !== 0) {
+      await requestRotatedPictureInPicture(source);
+      return;
+    }
+
+    await requestNativePictureInPicture(source);
+  }
+
+  async function setPipRotation(nextRotation, source) {
+    pipRotation = normalizeRotation(nextRotation);
+    const pipElement = document.pictureInPictureElement;
+
+    if (pipRotation === 0) {
+      if (rotatedPipSession && pipElement === rotatedPipSession.video) {
+        if (source && !source.ended) {
+          await requestNativePictureInPicture(source);
+        }
+        return;
+      }
+
+      cleanupRotatedPipSession();
+      return;
+    }
+
+    if (pipElement || rotatedPipSession) {
+      await requestRotatedPictureInPicture(source);
+    }
+  }
+
+  async function rotatePipVideo() {
+    if (!canManagePipInCurrentDocument()) {
+      return { success: false, error: "PIP_NOT_ALLOWED" };
+    }
+
+    const source = getActivePipSourceVideo() || getBestPipCandidate() || getFallbackPreparedCandidate();
+    if (!source) {
+      return { success: false, error: "NO_VIDEO" };
+    }
+
+    const previousRotation = pipRotation;
+    try {
+      await setPipRotation(pipRotation + 90, source);
+      clearPreparedPipMarkers(source);
+      try { source.setAttribute("data-auto-pip-prepared", ""); } catch (_) {}
+      return {
+        success: true,
+        rotation: pipRotation,
+        active: !!document.pictureInPictureElement,
+      };
+    } catch (error) {
+      pipRotation = previousRotation;
+      if (rotatedPipSession) {
+        if (previousRotation === 0 && document.pictureInPictureElement !== rotatedPipSession.video) {
+          cleanupRotatedPipSession();
+        } else {
+          drawRotatedFrame(rotatedPipSession);
+        }
+      }
+      return {
+        success: false,
+        error: error?.code || error?.name || "ROTATE_FAILED",
+      };
+    }
+  }
+
+  function notifyPipActivity(active) {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "PIP_ACTIVITY_CHANGED",
+          active: !!active,
+          rotation: pipRotation,
+        },
+        () => void chrome.runtime.lastError,
+      );
+    } catch (_) {}
+  }
+
   function isYouTubePage() {
     return /(^|\.)youtube(?:-nocookie)?\.com$/.test(window.location.hostname);
   }
@@ -96,6 +513,7 @@ const PipManager = (() => {
 
   function isVideoCandidate(video) {
     if (!video || video.ownerDocument !== document) return false;
+    if (isRotatedPipOutputVideo(video)) return false;
     normalizeYouTubeVideoFlags(video);
     return video.readyState >= 1 && !video.ended && !video.disablePictureInPicture && !isYouTubeAdVideo(video);
   }
@@ -181,6 +599,7 @@ const PipManager = (() => {
 
   function syncVideoWithRetry(video, retries = 5, delay = 200) {
     if (!video) return;
+    if (isRotatedPipOutputVideo(video)) return;
     if (!canManagePipInCurrentDocument()) {
       clearRetryTimer(video);
       return;
@@ -227,6 +646,7 @@ const PipManager = (() => {
 
   function syncVideo(video) {
     if (!video) return;
+    if (isRotatedPipOutputVideo(video)) return;
     if (!canManagePipInCurrentDocument()) {
       clearRetryTimer(video);
       try { video.removeAttribute("autopictureinpicture"); } catch (_) {}
@@ -252,6 +672,7 @@ const PipManager = (() => {
 
   function refreshVideos() {
     if (!canManagePipInCurrentDocument()) {
+      cleanupRotatedPipSession();
       getVideos().forEach((v) => {
         try { v.removeAttribute("autopictureinpicture"); } catch (_) {}
         try { v.removeAttribute("data-auto-pip-managed"); } catch (_) {}
@@ -313,7 +734,7 @@ const PipManager = (() => {
     if (!candidate) return;
 
     try {
-      await candidate.requestPictureInPicture();
+      await requestPictureInPictureForSource(candidate);
     } catch (err) {
       if (err && (err.name === "NotAllowedError" || err.name === "SecurityError")) {
         pipDeniedVideos.add(candidate);
@@ -381,6 +802,7 @@ const PipManager = (() => {
   function onVideoEvent(event) {
     const video = event?.target;
     if (!(video instanceof HTMLVideoElement)) return;
+    if (isRotatedPipOutputVideo(video)) return;
 
     if (event.type === "play" || event.type === "playing") {
       pipDeniedVideos.delete(video);
@@ -403,6 +825,23 @@ const PipManager = (() => {
     }
   }
 
+  function onPictureInPictureEvent(event) {
+    const video = event?.target;
+    if (!(video instanceof HTMLVideoElement)) return;
+
+    if (event.type === "enterpictureinpicture") {
+      notifyPipActivity(true);
+      return;
+    }
+
+    if (event.type === "leavepictureinpicture") {
+      notifyPipActivity(false);
+      if (isRotatedPipOutputVideo(video)) {
+        setTimeout(cleanupRotatedPipSession, 0);
+      }
+    }
+  }
+
   function observeDom() {
     if (state.observer) return;
     state.observer = new MutationObserver((mutations) => {
@@ -411,10 +850,15 @@ const PipManager = (() => {
         if (mutation.type === "childList" && (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)) {
           mutation.addedNodes.forEach((node) => {
             if (!(node instanceof Element)) return;
-            if (node instanceof HTMLVideoElement) { syncVideoWithRetry(node); return; }
+            if (node instanceof HTMLVideoElement) {
+              if (!isRotatedPipOutputVideo(node)) syncVideoWithRetry(node);
+              return;
+            }
             try {
               if (typeof node.querySelectorAll === "function") {
-                node.querySelectorAll("video").forEach((v) => syncVideoWithRetry(v));
+                node.querySelectorAll("video").forEach((v) => {
+                  if (!isRotatedPipOutputVideo(v)) syncVideoWithRetry(v);
+                });
               }
             } catch (_) {}
           });
@@ -423,6 +867,7 @@ const PipManager = (() => {
         }
         if (mutation.type === "attributes") {
           if (mutation.target instanceof HTMLVideoElement) {
+            if (isRotatedPipOutputVideo(mutation.target)) continue;
             needsRefresh = true;
             continue;
           }
@@ -474,6 +919,8 @@ const PipManager = (() => {
       document.addEventListener(eventName, onVideoEvent, true);
     });
 
+    document.addEventListener("enterpictureinpicture", onPictureInPictureEvent, true);
+    document.addEventListener("leavepictureinpicture", onPictureInPictureEvent, true);
     document.addEventListener("visibilitychange", onVisibilityChange, true);
     window.addEventListener("pageshow", () => scheduleRefresh(0), true);
     window.addEventListener("yt-navigate-finish", () => scheduleRefresh(300), true);
@@ -529,6 +976,13 @@ const PipManager = (() => {
       refreshVideos();
       sendResponse?.(result);
       return false;
+    }
+
+    if (message.type === "ROTATE_PIP_VIDEO") {
+      rotatePipVideo().then((result) => {
+        sendResponse?.(result);
+      });
+      return true;
     }
 
     if (message.type === "REFRESH_PIP_STATE") {

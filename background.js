@@ -14,6 +14,7 @@ let state = { ...defaultState };
 let lastActiveTabId = null;
 let lastActiveWindowId = null;
 let tempBlankTabId = null;
+let activePipTarget = null;
 
 const YOUTUBE_GUARD_SCRIPT_ID = "nt208-youtube-page-guard";
 const YOUTUBE_GUARD_MATCHES = [
@@ -320,6 +321,60 @@ async function refreshPipInTab(tabId) {
   return { success: true };
 }
 
+function samePipTarget(a, b) {
+  return !!a && !!b && a.tabId === b.tabId && a.frameId === b.frameId;
+}
+
+function sendMessageToPipTarget(target, message) {
+  return new Promise((resolve) => {
+    if (!target?.tabId) {
+      resolve({ success: false, error: "NO_TAB" });
+      return;
+    }
+
+    const callback = (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        resolve({ success: false, error: error.message || "SEND_MESSAGE_FAILED" });
+        return;
+      }
+      resolve(response || { success: true });
+    };
+
+    if (typeof target.frameId === "number") {
+      chrome.tabs.sendMessage(target.tabId, message, { frameId: target.frameId }, callback);
+    } else {
+      chrome.tabs.sendMessage(target.tabId, message, callback);
+    }
+  });
+}
+
+async function rotatePipVideo(tabId) {
+  if (state.pipEnabled === false) return { success: false, error: "PIP_DISABLED" };
+
+  const fallbackTarget = tabId ? { tabId, frameId: undefined } : null;
+  const targets = [];
+  if (activePipTarget?.tabId) targets.push(activePipTarget);
+  if (fallbackTarget && !targets.some((target) => samePipTarget(target, fallbackTarget))) {
+    targets.push(fallbackTarget);
+  }
+
+  if (targets.length === 0) return { success: false, error: "NO_TAB" };
+
+  let lastResult = null;
+  for (const target of targets) {
+    const result = await sendMessageToPipTarget(target, { type: "ROTATE_PIP_VIDEO" });
+    lastResult = result;
+
+    if (result?.success) return result;
+    if (result?.error && !/receiving end|Could not establish connection/i.test(result.error)) {
+      return result;
+    }
+  }
+
+  return lastResult || { success: false, error: "NO_VIDEO" };
+}
+
 async function togglePipAllowedDomain(domainInput) {
   const hostname = normalizeDomain(domainInput);
   if (!hostname) return { success: false, error: "INVALID_DOMAIN" };
@@ -401,6 +456,9 @@ async function toggleWhitelist(hostname) {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading") {
     state.blockedPerTab[tabId] = 0;
+    if (activePipTarget?.tabId === tabId) {
+      activePipTarget = null;
+    }
     updateBadge(tabId);
   }
 });
@@ -408,6 +466,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // Dọn dẹp khi tab bị đóng
 chrome.tabs.onRemoved.addListener((tabId) => {
   delete state.blockedPerTab[tabId];
+  if (activePipTarget?.tabId === tabId) {
+    activePipTarget = null;
+  }
   if (tempBlankTabId === tabId) {
     tempBlankTabId = null;
   }
@@ -471,6 +532,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             pipEnabled: state.pipEnabled !== false,
             pipAllowedDomains,
             pipDomainAllowed,
+            pipActive: !!activePipTarget,
             totalBlocked: state.totalBlocked,
             tabBlocked: state.blockedPerTab[tab?.id] || 0,
             whitelisted: state.whitelist.includes(hostname),
@@ -510,6 +572,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return true;
 
+    case "PIP_ACTIVITY_CHANGED":
+      {
+        const target = sender.tab?.id
+          ? { tabId: sender.tab.id, frameId: sender.frameId }
+          : null;
+        if (message.active && target) {
+          activePipTarget = target;
+        } else if (target && samePipTarget(activePipTarget, target)) {
+          activePipTarget = null;
+        }
+        sendResponse({ success: true });
+        return false;
+      }
+
     case "PREPARE_AUTO_PIP":
       {
         const targetTabId = message.tabId || sender.tab?.id;
@@ -522,6 +598,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse(result);
         });
 
+        return true;
+      }
+
+    case "ROTATE_PIP_VIDEO":
+      {
+        const targetTabId = message.tabId || sender.tab?.id;
+        rotatePipVideo(targetTabId).then((result) => {
+          sendResponse(result);
+        });
         return true;
       }
 
