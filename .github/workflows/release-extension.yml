@@ -66,6 +66,7 @@ jobs:
             icons \
             blocking \
             fullpage-capture \
+            media \
             phishing-alert \
             pip \
             popup \

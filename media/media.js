@@ -49,6 +49,16 @@ const MediaController = (() => {
     applyBrightness();
   }
 
+  function applyMediaState(volume, brightness) {
+    if (typeof volume === "number") {
+      MediaState.volume = volume;
+    }
+    if (typeof brightness === "number") {
+      MediaState.brightness = brightness;
+    }
+    applyAll();
+  }
+
   /**
    * Starts a MutationObserver to watch for DOM changes and re-apply media settings.
    * This is crucial for SPAs like YouTube and Facebook.
@@ -95,34 +105,45 @@ const MediaController = (() => {
 
   // FIX: Thêm message listener để nhận state mới từ background script
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === "INIT_MEDIA" || message.type === "APPLY_MEDIA_STATE") {
-      if (typeof message.mediaVolume === 'number') {
-        MediaState.volume = message.mediaVolume;
-      }
-      if (typeof message.mediaBrightness === 'number') {
-        MediaState.brightness = message.mediaBrightness;
-      }
-      applyAll();
-      sendResponse({ success: true });
-      return true;
+    switch (message.type) {
+      case "INIT_MEDIA":
+      case "APPLY_MEDIA_STATE":
+        applyMediaState(message.mediaVolume, message.mediaBrightness);
+        sendResponse({ success: true });
+        return true;
+
+      case "SET_VOLUME":
+        applyMediaState(message.value, undefined);
+        sendResponse({ success: true });
+        return true;
+
+      case "SET_BRIGHTNESS":
+        applyMediaState(undefined, message.value);
+        sendResponse({ success: true });
+        return true;
+
+      case "RESET_MEDIA":
+        applyMediaState(100, 100);
+        sendResponse({ success: true });
+        return true;
+
+      default:
+        return false;
     }
   });
 
   // Expose public methods to be controlled by content.js
   return {
     init,
+    applyMediaState,
     setVolume: (value) => {
-      MediaState.volume = value;
-      applyAll();
+      applyMediaState(value, undefined);
     },
     setBrightness: (value) => {
-      MediaState.brightness = value;
-      applyAll();
+      applyMediaState(undefined, value);
     },
     reset: () => {
-      MediaState.volume = 100;
-      MediaState.brightness = 100;
-      applyAll();
+      applyMediaState(100, 100);
     }
   };
 })();
