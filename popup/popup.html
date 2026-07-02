@@ -140,7 +140,30 @@
         <div id="blocklist-hint" class="blocklist-hint"></div>
     </section>
 
-    </section> <hr class="divider" />
+    <!-- =============================================
+   MEDIA CONTROL SECTION
+   ============================================= -->
+    <div class="media-section">
+        <div class="media-title">Điều khiển Media</div>
+        <div class="media-control">
+            <svg class="media-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 4L12 20M8 8L8 16M16 6L16 18M4 10L4 14M20 10L20 14" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <input type="range" id="media-volume-slider" class="media-slider" min="0" max="100" value="100">
+            <span id="media-volume-value" class="media-value">100%</span>
+        </div>
+        <div class="media-control">
+            <svg class="media-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                    d="M12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18ZM12 20V22M12 2V4M19.0711 4.92893L20.4853 3.51472M3.51472 20.4853L4.92893 19.0711M22 12H20M4 12H2M19.0711 19.0711L20.4853 20.4853M3.51472 3.51472L4.92893 4.92893"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <input type="range" id="media-brightness-slider" class="media-slider" min="0" max="100" value="100">
+            <span id="media-brightness-value" class="media-value">100%</span>
+        </div>
+        <button id="media-reset-btn" class="btn btn-secondary media-reset-btn">Reset</button>
+    </div>
 
     <section class="cookies-section" style="padding: 10px 15px;">
         <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #444;">

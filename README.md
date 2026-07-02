@@ -279,6 +279,21 @@ Chế độ tập trung học tập:
 **Nhóm:** 16  
 **Trường:** Đại học Công nghệ Thông tin — ĐHQG TP.HCM
 
+### 1. Tỷ lệ đóng góp của các thành viên
+| STT | Họ và tên | MSSV | Nhiệm vụ | Tỷ lệ đóng góp |
+|---|---|---|---|---|
+| 1 | Đỗ Tến Dương | 24520357 | AntiPhishing, Quản lí cookies phiên đăng nhập | 25%  |
+| 2 | Đặng Trần Khánh Duy | 24520365 | Full-Page Capture, Trợ lý AI đa năng, Tải video youtube | 25% |
+| 3 | Lê Quốc Dương | 24520358 | AdBlock, Studocu Bypass, Auto PiP, Study Blocker | 25% |
+| 4 | Lê Huy Phát | 24521299 | Note web, tùy chỉnh volumn, ánh sáng của từng web  | 25% |
+*(Tổng tỷ lệ đóng góp: 100%)*
+
+### 2. Links Tài nguyên đánh giá
+* **Video Demo toàn bộ tính năng:** https://drive.google.com/drive/folders/1HYSOk0Liv0QEpkYxoGNScDVUmzINTZbt
+
+---
+---
+
 ---
 
 ## 📜 Giấy phép & Tín dụng
