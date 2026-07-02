@@ -32,6 +32,12 @@ const fmtMenu    = document.getElementById('fmtMenu');
 const fmtTrigger = document.getElementById('fmtTrigger');
 const fmtBadge   = document.getElementById('fmtBadge');
 const fmtLabel   = document.getElementById('fmtLabel');
+const volumeSlider = document.getElementById("media-volume-slider");
+const brightnessSlider = document.getElementById("media-brightness-slider");
+
+const volumeValue = document.getElementById("media-volume-value");
+const brightnessValue = document.getElementById("media-brightness-value");
+const mediaResetBtn = document.getElementById("media-reset-btn");
 
 function sendTabMessage(tabId, message) {
   return new Promise((resolve, reject) => {
@@ -83,6 +89,20 @@ function sendRuntimeMessage(message) {
       resolve(response);
     });
   });
+}
+
+/**
+ * Cập nhật màu nền của thanh trượt để hiển thị tiến trình.
+ * @param {HTMLInputElement} slider - Thanh trượt cần cập nhật.
+ */
+function updateSliderProgress(slider) {
+  if (!slider) return;
+  const min = Number(slider.min);
+  const max = Number(slider.max);
+  const value = Number(slider.value);
+  const progress = ((value - min) / (max - min)) * 100;
+  // Dùng biến CSS --slider-progress để tô màu phần đã chọn
+  slider.style.setProperty('--slider-progress', `${progress}%`);
 }
 
 // Doi thanh URL Render sau khi deploy, vi du:
@@ -1097,3 +1117,75 @@ async function initCaptureFormat() {
     // ignore
   }
 }
+
+function updateMedia(type, value) {
+  if (!currentTab?.id) return;
+
+  // Gửi lệnh đến background script để xử lý và lưu state
+  sendRuntimeMessage({
+    type: type,
+    tabId: currentTab.id,
+    value: value,
+  }).catch(err => console.error(`[Popup] Lỗi gửi lệnh ${type}:`, err));
+}
+
+if (volumeSlider) {
+  volumeSlider.addEventListener("input", () => {
+    const value = Number(volumeSlider.value);
+    updateSliderProgress(volumeSlider);
+    if (volumeValue) volumeValue.textContent = value + "%";
+    updateMedia("SET_VOLUME", value);
+  });
+}
+
+if (brightnessSlider) {
+  brightnessSlider.addEventListener("input", () => {
+    const value = Number(brightnessSlider.value);
+    updateSliderProgress(brightnessSlider);
+    if (brightnessValue) brightnessValue.textContent = value + "%";
+    updateMedia("SET_BRIGHTNESS", value);
+  });
+}
+
+if (mediaResetBtn) {
+  mediaResetBtn.addEventListener("click", () => {
+    // Cập nhật UI
+    if (volumeSlider) {
+      volumeSlider.value = 100;
+      updateSliderProgress(volumeSlider);
+    }
+    if (volumeValue) volumeValue.textContent = "100%";
+    if (brightnessSlider) {
+      brightnessSlider.value = 100;
+      updateSliderProgress(brightnessSlider);
+    }
+    if (brightnessValue) brightnessValue.textContent = "100%";
+
+    // Gửi lệnh reset
+    updateMedia("RESET_MEDIA");
+  });
+}
+
+async function loadMediaSettings() {
+  const { adblockState } = await storageGet(["adblockState"]);
+  const vol = adblockState?.mediaVolume ?? 100;
+  const bright = adblockState?.mediaBrightness ?? 100;
+
+  if (volumeSlider) {
+    volumeSlider.value = vol;
+    updateSliderProgress(volumeSlider);
+  }
+  if (volumeValue) volumeValue.textContent = `${vol}%`;
+  if (brightnessSlider) {
+    brightnessSlider.value = bright;
+    updateSliderProgress(brightnessSlider);
+  }
+  if (brightnessValue) brightnessValue.textContent = `${bright}%`;
+}
+
+// Trong DOMContentLoaded, gọi hàm loadMediaSettings
+document.addEventListener("DOMContentLoaded", async () => {
+  // ... các hàm khác
+  await loadMediaSettings();
+  // ...
+});
