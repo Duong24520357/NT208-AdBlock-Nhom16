@@ -90,10 +90,6 @@ NT208-AdBlock-Nhom16/
 │
 └── rules/
     └── rule.json                  # Bộ quy tắc DNR tĩnh
-```
-
----
-
 
 
 ### 2. Build AI Sidebar (tùy chọn nhưng khuyến nghị)
