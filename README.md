@@ -1,22 +1,43 @@
 # 🛡️ AdBlock+ — NT208 Nhóm 16
 
-> **Chrome Extension (Manifest V3)** — Chặn quảng cáo, chống phishing, đọc tài liệu Studocu miễn phí, chụp màn hình toàn trang, tự động Picture-in-Picture và trợ lý AI ngay trong trình duyệt.
+> **Đồ án môn học NT208 (Lập trình ứng dụng Web) — Đại học Công nghệ Thông tin (UIT)**
+> Một tiện ích mở rộng (Chrome Extension) đa năng được phát triển trên kiến trúc **Manifest V3**. Không chỉ dừng lại ở việc chặn quảng cáo, tiện ích còn là một hệ sinh thái các công cụ hỗ trợ học tập, bảo mật mạng, quản lý dữ liệu và cá nhân hóa trải nghiệm duyệt web.
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Manifest](https://img.shields.io/badge/manifest-V3-success.svg)
+![Platform](https://img.shields.io/badge/platform-Chrome_|_Edge-orange.svg)
 
 ---
 
-## ✨ Tổng quan tính năng
+## ✨ Tổng quan tính năng (Core Features)
 
-| Tính năng | Mô tả |
+| Tính năng | Mô tả chi tiết |
 |---|---|
-| 🚫 **AdBlock** | Chặn quảng cáo bằng `declarativeNetRequest` (MV3) + heuristics DOM |
-| 🎓 **Studocu Bypass** | Xem & tải toàn bộ tài liệu trả phí miễn phí |
-| 📸 **Full-Page Capture** | Chụp ảnh toàn bộ trang web dài dưới dạng PNG |
-| 📺 **Auto PiP** | Tự động bật Picture-in-Picture khi đổi tab |
-| 🤖 **AI Sidebar** | Chat AI (OpenRouter) ngay bên cạnh trang web |
-| 🔐 **Anti-Phishing** | Chặn tên miền lừa đảo, cập nhật từ OpenPhish |
-| 📚 **Study Blocker** | Chặn truy cập mạng xã hội trong giờ học |
+| 🔐 **Anti-Phishing** | Ngăn chặn truy cập tên miền lừa đảo (zero-day) với dữ liệu cập nhật theo thời gian thực từ OpenPhish. |
+| 🍪 **Quản lý Cookies** | Xuất (Export) và Nhập (Import) trọn bộ Cookies để sao lưu hoặc chia sẻ phiên đăng nhập an toàn. |
+| 🤖 **AI Sidebar** | Trợ lý ảo đa năng tích hợp OpenRouter API (Chat, dịch thuật, giải thích code) ngay bên cạnh trang web. |
+| 📸 **Full-Page Capture** | Cuộn và chụp ảnh toàn bộ trang web dài, xuất ra định dạng PNG chất lượng cao. |
+| 📥 **Tải Video YouTube** | Hỗ trợ bắt link và tải trực tiếp video/audio từ YouTube một cách dễ dàng. |
+| 🚫 **AdBlock** | Chặn quảng cáo tận gốc bằng `declarativeNetRequest` kết hợp thuật toán heuristics DOM. |
+| 🎓 **Studocu Bypass** | Can thiệp DOM để xóa banner làm mờ, hỗ trợ xem và tải tài liệu Studocu hoàn toàn miễn phí. |
+| 📺 **Auto PiP** | Picture-in-Picture thông minh, tự động thu nhỏ video khi người dùng chuyển sang tab khác. |
+| 📚 **Study Blocker** | Khóa các trang web giải trí mạng xã hội, giúp tập trung tối đa trong giờ học. |
+| 🎨 **Web Customizer** | Cung cấp công cụ ghi chú (Note) trực tiếp lên trang, tùy chỉnh độ sáng và âm lượng riêng biệt cho từng web. |
 
 ---
+
+## 🚀 Hướng dẫn cài đặt
+
+### Yêu cầu hệ thống
+- Google Chrome 116+ (hoặc các trình duyệt lõi Chromium: Edge, Brave, Opera)
+- Node.js 18+ và npm (Dành cho việc build AI Sidebar)
+
+### Các bước cài đặt
+
+**Bước 1: Tải mã nguồn**
+```bash
+git clone [https://github.com/Duong24520357/NT208-AdBlock-Nhom16.git](https://github.com/Duong24520357/NT208-AdBlock-Nhom16.git)
+cd NT208-AdBlock-Nhom16
 
 ## 📁 Cấu trúc thư mục
 
@@ -73,19 +94,7 @@ NT208-AdBlock-Nhom16/
 
 ---
 
-## 🚀 Cài đặt
 
-### Yêu cầu
-
-- Google Chrome 116+ (hoặc Chromium-based: Edge, Brave, Opera)
-- Node.js 18+ và npm (chỉ để build AI Sidebar)
-
-### 1. Tải mã nguồn
-
-```bash
-git clone https://github.com/Duong24520357/NT208-AdBlock-Nhom16.git
-cd NT208-AdBlock-Nhom16
-```
 
 ### 2. Build AI Sidebar (tùy chọn nhưng khuyến nghị)
 
