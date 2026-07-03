@@ -41,7 +41,7 @@ cd NT208-AdBlock-Nhom16
 
 ## 📁 Cấu trúc thư mục
 
-```
+```text
 NT208-AdBlock-Nhom16/
 ├── manifest.json                  # Cấu hình extension (MV3)
 ├── background.js                  # Service worker chính
